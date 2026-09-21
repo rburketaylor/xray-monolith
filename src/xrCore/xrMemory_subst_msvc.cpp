@@ -49,8 +49,10 @@ void* xrMemory::mem_alloc(size_t size
 
 #ifdef PURE_ALLOC
 	{
-		//void* result = malloc(size);
-		void* result = _aligned_malloc(size, PURE_MEMORY_ALIGNMENT);
+		// x64 CRT malloc guarantees 16-byte alignment (== PURE_MEMORY_ALIGNMENT);
+		// plain malloc avoids the aligned-alloc bookkeeping on every allocation.
+		void* result = malloc(size);
+		//void* result = _aligned_malloc(size, PURE_MEMORY_ALIGNMENT);
 #ifdef PURE_MEMORY_FILL_ZERO
 		if (result && zeroMemory)
 			memset(result, 0, size);
@@ -137,8 +139,8 @@ void xrMemory::mem_free(void* P)
 
 #ifdef PURE_ALLOC
 	{
-		//free(P);
-		_aligned_free(P);
+		free(P);
+		//_aligned_free(P);
 		return;
 	}
 #endif // PURE_ALLOC
@@ -192,11 +194,12 @@ void* xrMemory::mem_realloc(void* P, size_t size
 #ifdef PURE_ALLOC
 	{
 #ifdef PURE_MEMORY_FILL_ZERO
-		size_t old_size = P ? _aligned_msize(P, PURE_MEMORY_ALIGNMENT, 0) : 0;
+		size_t old_size = P ? _msize(P) : 0;
 #endif // PURE_MEMORY_FILL_ZERO
 
-		//void* result = realloc(P, size);
-		void* result = _aligned_realloc(P, size, PURE_MEMORY_ALIGNMENT);
+		// x64 CRT realloc keeps the 16-byte alignment guaranteed by malloc.
+		void* result = realloc(P, size);
+		//void* result = _aligned_realloc(P, size, PURE_MEMORY_ALIGNMENT);
 
 #ifdef PURE_MEMORY_FILL_ZERO
 		if (result && size > old_size)
