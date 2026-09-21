@@ -433,6 +433,35 @@ public:
 		return *this;
 	}
 
+	// normalized lerp along the shortest arc. Endpoints match slerp; the path
+	// is the same, only the angular speed is non-uniform, which is negligible
+	// for closely spaced keys. No acos/sin/divide, so cheap enough for per-bone
+	// animation key blending.
+	ICF SelfRef nlerp(SelfCRef Q0, SelfCRef Q1, T tm)
+	{
+		T cosom = (Q0.w * Q1.w) + (Q0.x * Q1.x) + (Q0.y * Q1.y) + (Q0.z * Q1.z);
+		T Scale0 = 1.0f - tm;
+		T Scale1 = (cosom < 0) ? -tm : tm;
+
+		x = Scale0 * Q0.x + Scale1 * Q1.x;
+		y = Scale0 * Q0.y + Scale1 * Q1.y;
+		z = Scale0 * Q0.z + Scale1 * Q1.z;
+		w = Scale0 * Q0.w + Scale1 * Q1.w;
+
+		// unit inputs can't collapse after the sign flip (|result| >= 1/sqrt(2));
+		// only guard against degenerate (zero) input keys.
+		T len_sq = x * x + y * y + z * z + w * w;
+		if (len_sq > EPS_S)
+		{
+			T inv_len = T(1) / _sqrt(len_sq);
+			x *= inv_len;
+			y *= inv_len;
+			z *= inv_len;
+			w *= inv_len;
+		}
+		return *this;
+	}
+
 	// return TRUE if quaternions differ elementwise by less than Tolerance.
 	IC BOOL cmp(SelfCRef Q, T Tolerance = 0.0001f)
 	{
