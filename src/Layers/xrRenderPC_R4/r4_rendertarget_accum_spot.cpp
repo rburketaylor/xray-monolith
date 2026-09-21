@@ -639,8 +639,12 @@ void CRenderTarget::accum_volumetric(light* L)
 				//	Shadowmap texture always uses 0 texture unit
 				if (load_id == 0)
 				{
-					//	Assign correct texture
-					loader.second.create(pszSMapName);
+					//	Assign correct texture. pszSMapName depends only on startup
+					//	constants (HW_smap / HW_smap_PCF), so skip the re-resolve
+					//	(name lookup + refcount churn) when the pass texture
+					//	already points at it.
+					if (!loader.second || xr_strcmp(loader.second->cName, pszSMapName) != 0)
+						loader.second.create(pszSMapName);
 				}
 			}
 		}
