@@ -23,6 +23,24 @@
 shared_str s_bones_array_const;
 shared_str s_bones_array_prev_const;
 
+#ifdef USE_DX11
+// Last-writer stamp for the bone-matrix upload. DX11 constant buffers keep
+// their CPU-side contents across draws and passes, and buffers with the same
+// layout are shared between shaders (CResourceManager::_CreateConstantBuffer),
+// so the stamp is keyed by the actual vertex cbuffer the bones land in, not by
+// the per-shader R_constant: bones only need rewriting when another skeleton
+// (or an earlier frame) wrote that buffer last.
+namespace
+{
+struct SBonesUploadStamp
+{
+	u32 frame;
+	CKinematics* instance;
+};
+xr_unordered_map<dx10ConstantBuffer*, SBonesUploadStamp> s_bones_upload_stamps;
+} // namespace
+#endif
+
 //////////////////////////////////////////////////////////////////////
 // Body Part
 //////////////////////////////////////////////////////////////////////
@@ -135,28 +153,50 @@ void CSkeletonX::_Render(ref_geom& hGeom, u32 vCount, u32 iOffset, u32 pCount)
 			{
 				PROF_EVENT("SEND_MATRICES");
 				u32 count = RMS_bonecount;
-				for (u32 mid = 0; mid < count; mid++)
+
+				bool upload_bones = true;
+#ifdef USE_DX11
+				// vertex-only destination: the one buffer we key on is the only one written
+				if (array && (array->destination & (RC_dest_pixel | RC_dest_geometry | RC_dest_hull | RC_dest_domain | RC_dest_compute)) == 0)
 				{
-					Fmatrix& M = Parent->LL_GetTransform_R(u16(mid));
-					u32 id = mid * 3;
-					RCache.set_ca(&*array, id + 0, M._11, M._21, M._31, M._41);
-					RCache.set_ca(&*array, id + 1, M._12, M._22, M._32, M._42);
-					RCache.set_ca(&*array, id + 2, M._13, M._23, M._33, M._43);
+					const u32 cb_index = (array->destination & RC_dest_vertex_cb_index_mask) >> RC_dest_vertex_cb_index_shift;
+					SBonesUploadStamp& stamp = s_bones_upload_stamps[RCache.m_aVertexConstants[cb_index]._get()];
+					upload_bones = stamp.frame != Device.dwFrame || stamp.instance != Parent;
+					stamp.frame = Device.dwFrame;
+					stamp.instance = Parent;
+				}
+#endif
+
+				if (upload_bones)
+				{
+					for (u32 mid = 0; mid < count; mid++)
+					{
+						Fmatrix& M = Parent->LL_GetTransform_R(u16(mid));
+						u32 id = mid * 3;
+						RCache.set_ca(&*array, id + 0, M._11, M._21, M._31, M._41);
+						RCache.set_ca(&*array, id + 1, M._12, M._22, M._32, M._42);
+						RCache.set_ca(&*array, id + 2, M._13, M._23, M._33, M._43);
+					}
+				}
 
 #ifdef USE_DX11
-					if (RImplementation.phase == RImplementation.PHASE_NORMAL)
+				if (RImplementation.phase == RImplementation.PHASE_NORMAL)
+				{
+					if (RImplementation.o.ssfx_motionvectors)
 					{
-						if (RImplementation.o.ssfx_motionvectors)
+						// Previous transforms feed motion vectors; they are only
+						// written in the normal phase, so keep them unguarded.
+						for (u32 mid = 0; mid < count; mid++)
 						{
-							// Save previous transform
 							Fmatrix& Mprev = Parent->LL_GetBoneInstance(u16(mid)).mRenderTransform_prev;
+							u32 id = mid * 3;
 							RCache.set_ca(&*array_prev, id + 0, Mprev._11, Mprev._21, Mprev._31, Mprev._41);
 							RCache.set_ca(&*array_prev, id + 1, Mprev._12, Mprev._22, Mprev._32, Mprev._42);
 							RCache.set_ca(&*array_prev, id + 2, Mprev._13, Mprev._23, Mprev._33, Mprev._43);
 						}
 					}
-#endif
 				}
+#endif
 			}
 
 			// render
