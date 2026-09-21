@@ -409,27 +409,33 @@ public:
 			sign = 1.f;
 		}
 
-		if ((1.0f - cosom) > EPS)
-		{
-			T omega = _acos_(cosom);
-			T i_sinom = 1.f / _sin(omega);
-			T t_omega = tm * omega;
-			Scale0 = _sin(omega - t_omega) * i_sinom;
-			Scale1 = _sin(t_omega) * i_sinom;
-		}
-		else
-		{
-			// has numerical difficulties around cosom == 0
-			// in this case degenerate to linear interpolation
-			Scale0 = 1.0f - tm;
-			Scale1 = tm;
-		}
-		Scale1 *= sign;
+		// Sign-corrected nlerp: 'sign' handles cosom < 0 (shortest route), and the
+		// angle between quaternions is always < pi/2 after the flip, so
+		// lerp-then-normalize stays close to the true slerp path. Saves acos,
+		// 3x sin and a divide per blend per bone.
+		Scale0 = 1.0f - tm;
+		Scale1 = tm * sign;
 
 		x = Scale0 * Q0.x + Scale1 * Q1.x;
 		y = Scale0 * Q0.y + Scale1 * Q1.y;
 		z = Scale0 * Q0.z + Scale1 * Q1.z;
 		w = Scale0 * Q0.w + Scale1 * Q1.w;
+
+		// Guard the Q0 == -Q1 midpoint degeneracy: fall back to Q0 if the
+		// interpolated quaternion collapsed.
+		T len = _sqrt(x * x + y * y + z * z + w * w);
+		if (len > EPS)
+		{
+			T inv_len = T(1) / len;
+			x *= inv_len;
+			y *= inv_len;
+			z *= inv_len;
+			w *= inv_len;
+		}
+		else
+		{
+			*this = Q0;
+		}
 		return *this;
 	}
 
