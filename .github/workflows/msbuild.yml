@@ -10,6 +10,7 @@ on:
     branches: [ "all-in-one-vs2022-wpo" ]
   pull_request:
     branches: [ "all-in-one-vs2022-wpo" ]
+  workflow_dispatch:
 
 permissions: write-all
 
@@ -196,8 +197,8 @@ jobs:
 
     - name: Checkout repo
       uses: actions/checkout@v4
-      with:
-        ref: all-in-one-vs2022-wpo-mt
+      # with:
+      #   ref: all-in-one-vs2022-wpo-mt  # builds the triggering branch (workflow_dispatch)
 
     - name: Init submodules
       uses: snickerbockers/submodules-init@v4
@@ -282,6 +283,7 @@ jobs:
         retention-days: 1
 
   release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/all-in-one-vs2022-wpo'
     needs: [pack_gamedata, build, build_mt]
     name: Release
     runs-on: ubuntu-latest
