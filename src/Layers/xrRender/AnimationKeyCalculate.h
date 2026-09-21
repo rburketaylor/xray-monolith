@@ -6,7 +6,7 @@ IC void KEY_Interp(CKey& D, const CKey& K1, const CKey& K2, float delta)
 {
 	VERIFY(_valid(delta));
 	VERIFY(delta>=0.f && delta<=1.f);
-	D.Q.slerp(K1.Q, K2.Q, delta);
+	D.Q.nlerp(K1.Q, K2.Q, delta);
 	D.T.lerp(K1.T, K2.T, delta);
 }
 
@@ -101,7 +101,7 @@ IC void Dequantize(CKey& K, const CBlend& BD, const CMotion& M)
 		Fquaternion Q1, Q2;
 		QR2Quat(*K1r, Q1);
 		QR2Quat(*K2r, Q2);
-		D->Q.slerp(Q1, Q2, clampr(delta, 0.f, 1.f));
+		D->Q.nlerp(Q1, Q2, clampr(delta, 0.f, 1.f));
 	}
 
 	// translate
