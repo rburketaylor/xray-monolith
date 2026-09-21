@@ -144,7 +144,11 @@ void CALifeUpdateManager::shedule_Update(u32 dt)
 
 void CALifeUpdateManager::set_process_time(int microseconds)
 {
-	graph().set_process_time(float(microseconds) - float(microseconds) * update_monster_factor() / 1000000.f);
+	// Consumer (CSSafeMapIterator::time_over) compares against GetElapsed_sec(),
+	// so the budget must be stored in seconds. Previously the raw microsecond
+	// count was stored, making the time limit effectively never fire.
+	const float sec = float(microseconds) / 1000000.f;
+	graph().set_process_time(sec - sec * update_monster_factor());
 }
 
 void CALifeUpdateManager::objects_per_update(const u32& objects_per_update)
