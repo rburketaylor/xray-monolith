@@ -10,6 +10,7 @@ on:
     branches: [ "all-in-one-vs2022-wpo" ]
   pull_request:
     branches: [ "all-in-one-vs2022-wpo" ]
+  workflow_dispatch:
 
 permissions: write-all
 
@@ -32,6 +33,8 @@ env:
 
 jobs:
   pack_gamedata:
+    # manual (workflow_dispatch) runs are test builds: only build_mt DX11-AVX
+    if: github.event_name != 'workflow_dispatch'
     name: pack_gamedata
     runs-on: windows-latest
 
@@ -66,6 +69,7 @@ jobs:
         retention-days: 1
         
   build:
+    if: github.event_name != 'workflow_dispatch'
     name: build-job
     runs-on: windows-latest
 
@@ -179,7 +183,7 @@ jobs:
 
     strategy:
       matrix:
-        buildconf: ["DX11", "DX10", "DX9", "DX8", "DX11-AVX", "DX10-AVX", "DX9-AVX", "DX8-AVX"]
+        buildconf: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["DX11-AVX"]') || fromJSON('["DX11", "DX10", "DX9", "DX8", "DX11-AVX", "DX10-AVX", "DX9-AVX", "DX8-AVX"]') }}
 
     steps:
     - name: Configure Pagefile
@@ -196,8 +200,8 @@ jobs:
 
     - name: Checkout repo
       uses: actions/checkout@v4
-      with:
-        ref: all-in-one-vs2022-wpo-mt
+      # with:
+      #   ref: all-in-one-vs2022-wpo-mt  # builds the triggering branch (workflow_dispatch)
 
     - name: Init submodules
       uses: snickerbockers/submodules-init@v4
@@ -282,6 +286,7 @@ jobs:
         retention-days: 1
 
   release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/all-in-one-vs2022-wpo'
     needs: [pack_gamedata, build, build_mt]
     name: Release
     runs-on: ubuntu-latest
