@@ -7,6 +7,11 @@
 
 using Feel::Vision;
 
+// How long a dynamic-occluder verdict may be reused while the ray is unchanged.
+// Dynamic occluders move on their own, so the verdict has to expire even when
+// observer and target stand still.
+static const u32 s_dyn_occluder_cache_ms = 200;
+
 Vision::Vision(CObject* owner) :
 	pure_relcase(&Vision::feel_vision_relcase),
     pure_relcase_visual(&Vision::feel_vision_relcase),
@@ -48,6 +53,8 @@ void Vision::o_new(CObject* O)
 	feel_visible_Item& I = feel_visible.back();
 	I.O = O;
 	I.Cache_vis = 1.f;
+	I.Cache_dyn_occluded = FALSE;
+	I.Cache_dyn_until = 0;
 	I.Cache.verts[0].set(0, 0, 0);
 	I.Cache.verts[1].set(0, 0, 0);
 	I.Cache.verts[2].set(0, 0, 0);
@@ -209,15 +216,21 @@ void Vision::o_trace(Fvector& P, float dt, float vis_threshold)
 				collide::rq_target(
 					collide::rqtStatic | /**/collide::rqtObject | /**/collide::rqtObstacle));
 			SFeelParam feel_params(this, &*I, vis_threshold);
+			bool dyn_cached = false;
 			// check cache
 			if (I->Cache.result && I->Cache.similar(P, D, f))
 			{
-				// similar with previous query
+				// similar with previous query - reuse the static result, and the
+				// dynamic occluder result while it has not expired
 				feel_params.vis = I->Cache_vis;
-				// Log("cache 0");
+				dyn_cached = Device.dwTimeGlobal < I->Cache_dyn_until;
+				if (dyn_cached && I->Cache_dyn_occluded)
+					feel_params.vis = 0.f;
 			}
 			else
 			{
+				// new ray: the dynamic verdict belongs to the old one
+				I->Cache_dyn_until = 0;
 				float _u, _v, _range;
 				if (CDB::TestRayTri(P, D, I->Cache.verts, _u, _v, _range, false) && (_range > 0 && _range < f))
 				{
@@ -263,40 +276,45 @@ void Vision::o_trace(Fvector& P, float dt, float vis_threshold)
 					// Log("query");
 				}
 			}
-			// Log("Vis",feel_params.vis);
-			g_SpatialSpace->q_ray(r_spatial, 0, STYPE_VISIBLEFORAI, P, D, f);
-
-			RD.flags = CDB::OPT_ONLYFIRST;
-
-			bool collision_found = false;
-
-			for (const ISpatialShared& Ptr : r_spatial)
+			if (!dyn_cached && feel_params.vis > 0.f)
 			{
-				CObject const* object = Ptr->dcast_CObject();
+				g_SpatialSpace->q_ray(r_spatial, 0, STYPE_VISIBLEFORAI, P, D, f);
 
-				if (object == m_owner)
-					continue;
+				RD.flags = CDB::OPT_ONLYFIRST;
 
-				if (object == I->O)
-					continue;
+				bool collision_found = false;
+
+				for (const ISpatialShared& Ptr : r_spatial)
+				{
+					CObject const* object = Ptr->dcast_CObject();
+
+					if (object == m_owner)
+						continue;
+
+					if (object == I->O)
+						continue;
 
 #ifdef SPATIAL_CHANGE
-				if (object->SpatialComponent->spatial.type & STYPE_FEELVISIONIGNORE)
-					/* See through objects that have the flag. */
-					continue;
+					if (object->SpatialComponent->spatial.type & STYPE_FEELVISIONIGNORE)
+						/* See through objects that have the flag. */
+						continue;
 #endif
-				
-				RQR.r_clear();
-				if (object && object->collidable.model && !object->collidable.model->_RayQuery(RD, RQR))
-					continue;
+					
+					RQR.r_clear();
+					if (object && object->collidable.model && !object->collidable.model->_RayQuery(RD, RQR))
+						continue;
 
-				collision_found = true;
-				break;
+					collision_found = true;
+					break;
+				}
+
+				if (collision_found)
+					feel_params.vis = 0.f;
+
+				I->Cache_dyn_occluded = collision_found ? TRUE : FALSE;
+				I->Cache_dyn_until = Device.dwTimeGlobal + s_dyn_occluder_cache_ms;
 			}
-
-			if (collision_found)
-				feel_params.vis = 0.f;
-
+			// Log("Vis",feel_params.vis);
 			if (feel_params.vis < feel_params.vis_threshold)
 			{
 				// INVISIBLE, choose next point

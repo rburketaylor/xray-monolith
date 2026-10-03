@@ -48,6 +48,8 @@ namespace Feel
 			CObject* O;
 			float fuzzy; // note range: (-1[no]..1[yes])
 			float Cache_vis;
+			BOOL Cache_dyn_occluded; // dynamic occluder result cached with Cache
+			u32 Cache_dyn_until; // dwTimeGlobal until which Cache_dyn_occluded may be reused
 			u16 bone_id;
 		};
 
