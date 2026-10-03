@@ -77,7 +77,7 @@ void XRay::Engine::CalculateBonesThread()
 	static xr_vector<SpatialSnapshot> spatialsSnapshot;
 	spatialsSnapshot.clear();
 	{
-		for (ISpatialShared spatial : spatials)
+		for (const ISpatialShared& spatial : spatials)
 		{
 			if (!spatial)
 				continue;

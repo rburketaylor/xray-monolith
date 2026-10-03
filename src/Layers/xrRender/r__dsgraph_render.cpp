@@ -539,7 +539,7 @@ void CDSGraphManager::r_dsgraph_capture_lights()
 	});
 #endif
 
-	for (ISpatialShared spatial : lstLights)
+	for (const ISpatialShared& spatial : lstLights)
 	{
 		if (0 == spatial) continue;
 		if (R4FullDetailRejectSpatial(spatial.get(), i_mask[CDSGraphManager::fl_normal])) continue;
@@ -645,7 +645,7 @@ void CDSGraphManager::r_dsgraph_capture_dynamic(CObject* O)
 			// Determine visibility for dynamic part of scene
 			for (u32 o_it = 0; o_it < lstRenderables.size(); o_it++)
 			{
-				ISpatialShared spatial = lstRenderables[o_it];
+				const ISpatialShared& spatial = lstRenderables[o_it];
 				if (0 == spatial) continue;
 				if (R4FullDetailRejectSpatial(spatial.get(), i_mask[CDSGraphManager::fl_normal])) continue;
 				CSector* sector = (CSector*)spatial->spatial.sector;
