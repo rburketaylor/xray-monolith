@@ -146,6 +146,10 @@ public:
 	////////////////////////////////////
 	//работа с дочерними и родительскими окнами
 	virtual void AttachChild(CUIWindow* pChild);
+	// same as AttachChild, but skips the linear IsChild duplicate scan; the caller
+	// must guarantee pChild is not attached (the cell container's placement does
+	// so by checking pChild's parent first)
+	void AttachChildUnchecked(CUIWindow* pChild);
 	virtual void DetachChild(CUIWindow* pChild);
 	virtual bool IsChild(CUIWindow* pChild) const;
 	virtual void DetachAll();

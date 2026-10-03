@@ -581,6 +581,22 @@ CUICellContainer::~CUICellContainer()
 {
 }
 
+// "dont_stack" never changes at runtime; cache the ini lookup per section so
+// stack search does not hit pSettings for every candidate on every insert.
+static bool IsDontStackSection(const shared_str& section_id)
+{
+	typedef xr_map<shared_str, bool> DontStackCache;
+	static DontStackCache cache;
+
+	DontStackCache::iterator it = cache.find(section_id);
+	if (it != cache.end())
+		return it->second;
+
+	bool value = pSettings->line_exist(section_id, "dont_stack") && pSettings->r_bool(section_id, "dont_stack") == TRUE;
+	cache.emplace(section_id, value);
+	return value;
+}
+
 bool CUICellContainer::AddSimilar(CUICellItem* itm)
 {
 	if (!m_pParentDragDropList->IsGrouping()) return false;
@@ -592,8 +608,7 @@ bool CUICellContainer::AddSimilar(CUICellItem* itm)
 		if (iitem->m_pInventory->ItemFromSlot(iitem->BaseSlot()) == iitem)
 			return false;
 
-		if (pSettings->line_exist(iitem->m_section_id, "dont_stack") && pSettings->r_bool(
-			iitem->m_section_id, "dont_stack") == TRUE)
+		if (IsDontStackSection(iitem->m_section_id))
 			return false;
 	}
 	//-Alundaio
@@ -613,6 +628,8 @@ CUICellItem* CUICellContainer::FindSimilar(CUICellItem* itm)
 	static CPerfAccumTimer perfAccum("CUICellContainer::FindSimilar");
 	CPerfAccumScope perfScope(perfAccum, Device.dwFrame);
 	xrCriticalSectionGuard guard(csUi);
+	PIItem itm_item = (PIItem)itm->m_pData;
+	shared_str itm_section = itm_item ? itm_item->object().cNameSect() : NULL;
 	for (WINDOW_LIST_it it = m_ChildWndList.begin(); m_ChildWndList.end() != it; ++it)
 	{
 #ifdef DEBUG
@@ -622,13 +639,15 @@ CUICellItem* CUICellContainer::FindSimilar(CUICellItem* itm)
 #endif
 		//Alundaio: Don't stack equipped items
 		PIItem iitem = (PIItem)i->m_pData;
+		// every EqualTo override compares sections first; skip the rest early
+		if (!iitem || !itm_item || iitem->object().cNameSect() != itm_section)
+			continue;
 		if (iitem && iitem->m_pInventory)
 		{
 			if (iitem->m_pInventory->ItemFromSlot(iitem->BaseSlot()) == iitem)
 				continue;
 
-			if (pSettings->line_exist(iitem->m_section_id, "dont_stack") && pSettings->r_bool(
-				iitem->m_section_id, "dont_stack") == TRUE)
+			if (IsDontStackSection(iitem->m_section_id))
 				continue;
 		}
 		//-Alundaio
@@ -677,7 +696,13 @@ void CUICellContainer::PlaceItemAtPos(CUICellItem* itm, Ivector2& cell_pos)
 	}
 
 
-	AttachChild(itm);
+	// AttachChild's duplicate guard scans the whole child list. An item that is
+	// already attached here names this container as its parent, so only take
+	// the guarded path then and skip the scan for the usual new/moved item.
+	if (itm->GetParent() == this)
+		AttachChild(itm);
+	else
+		AttachChildUnchecked(itm);
 	itm->OnAfterChild(m_pParentDragDropList);
 }
 

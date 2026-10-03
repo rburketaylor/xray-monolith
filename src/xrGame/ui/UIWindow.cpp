@@ -322,6 +322,17 @@ void CUIWindow::AttachChild(CUIWindow* pChild)
 	m_ChildWndList.push_back(pChild);
 }
 
+void CUIWindow::AttachChildUnchecked(CUIWindow* pChild)
+{
+	R_ASSERT(pChild);
+	if (!pChild) return;
+
+	pChild->SetParent(this);
+
+	xrCriticalSectionGuard guard(csUi);
+	m_ChildWndList.push_back(pChild);
+}
+
 void CUIWindow::DetachChild(CUIWindow* pChild)
 {
 	R_ASSERT(pChild);
