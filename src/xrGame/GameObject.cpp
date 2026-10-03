@@ -1297,8 +1297,13 @@ void CGameObject::UpdateCL()
 	if (H_Parent())
 		return;
 
-	on_matrix_change(m_previous_matrix);
-	m_previous_matrix = XFORM();
+	// only invalidate the AI obstacle when the transform actually changed; a
+	// resting item otherwise re-marks its obstacle stale every frame
+	if (!similar(XFORM(), m_previous_matrix))
+	{
+		on_matrix_change(m_previous_matrix);
+		m_previous_matrix = XFORM();
+	}
 }
 
 void CGameObject::on_matrix_change(const Fmatrix& previous)
