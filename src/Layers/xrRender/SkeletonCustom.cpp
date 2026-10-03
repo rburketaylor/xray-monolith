@@ -822,6 +822,7 @@ struct zero_wm_pred
 void CKinematics::CalculateWallmarks()
 {
 	PROF_EVENT("Calculate Wallmarks");
+	if (wallmarks.empty()) return; // skip the lock for the common no-wallmarks case
 	xrCriticalSectionGuard guard(wallmarks_cs);
 	if (!wallmarks.empty() && (wm_frame != RDEVICE.dwFrame))
 	{

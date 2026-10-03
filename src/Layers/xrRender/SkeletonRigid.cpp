@@ -28,6 +28,16 @@ void CKinematics::CalculateBones(BOOL bForceExact)
 	// skip all the computations - assume nothing changes in a small period of time :)
 	if (RDEVICE.dwTimeGlobal == UCalc_Time) return; // early out for "fast" update
 
+	// pre-filter: update_rate_k below is never < 1, so a call inside the base
+	// interval can't be due at any rate and can skip the SSA/distance work.
+	// Animation tracks still advance on every call, as on the full path.
+	if (!bForceExact && (RDEVICE.dwTimeGlobal < (UCalc_Time + UCalc_Interval)))
+	{
+		xrCriticalSectionGuard g(UCalc_Mutex);
+		OnCalculateBones();
+		return;
+	}
+
 	// demonized: reduce calculate bones updates when the object is far away and not in frustum
 	// Available only if can get parent xform
 	// Refactor later for per object basis
