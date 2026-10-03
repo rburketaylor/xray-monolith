@@ -253,6 +253,7 @@ float ps_r2_dhemi_sky_scale = 0.08f; // 1.5f
 float ps_r2_dhemi_light_scale = 0.2f;
 float ps_r2_dhemi_light_flow = 0.1f;
 int ps_r2_dhemi_count = 5; // 5
+int ps_r_ros_budget = 16; // max CROS lighting updates per frame, 0 = unlimited
 int ps_r2_shadow_omnipart_vischeck = 1;
 int ps_r2_wait_sleep = 0;
 int ps_r2_qsync = 0;
@@ -1715,6 +1716,7 @@ void xrRender_initconsole()
 	CMD4(CCC_Integer, "r2_shadow_omnipart_vischeck", &ps_r2_shadow_omnipart_vischeck, 0, 1);
 	CMD4(CCC_Integer, "r2_wait_sleep", &ps_r2_wait_sleep, 0, 1);
 	CMD4(CCC_Integer, "r2_qsync", &ps_r2_qsync, 0, 1);
+	CMD4(CCC_Integer, "r_ros_budget", &ps_r_ros_budget, 0, 1000);
 
 #ifndef MASTER_GOLD
 	CMD4(CCC_Integer,	"r2_dhemi_count",		&ps_r2_dhemi_count,			4,		25		);

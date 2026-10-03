@@ -316,7 +316,31 @@ void CROS_impl::smart_update(IRenderable* O)
 	vis_data& vis = O->renderable.visual->getVisData();
 	O->renderable.xform.transform_tiny(position, vis.sphere.P);
 
-	if (ticks_to_update <= 0)
+	const bool due = ticks_to_update <= 0;
+	if (!due && last_position.similar(position, 0.15))
+		return;
+
+	// Limit full lighting updates per frame (r_ros_budget, 0 = unlimited). A burst
+	// of new or moving objects otherwise each pays a full update (hemi ray casts,
+	// light DB query) in the same frame. Only updates that are about to run are
+	// charged. Objects with no lighting samples yet (result_count == 0) bypass the
+	// budget so they never pop in unlit; deferred objects keep ticks_to_update <= 0
+	// (or their old last_position) and simply retry next frame.
+	if (ps_r_ros_budget > 0 && result_count > 0)
+	{
+		static u32 budget_frame = 0;
+		static u32 budget_used = 0;
+		if (budget_frame != Device.dwFrame)
+		{
+			budget_frame = Device.dwFrame;
+			budget_used = 0;
+		}
+		if (budget_used >= (u32)ps_r_ros_budget)
+			return;
+		++budget_used;
+	}
+
+	if (due)
 	{
 		update(O);
 		last_position = position;
@@ -330,17 +354,15 @@ void CROS_impl::smart_update(IRenderable* O)
 	}
 	else
 	{
-		if (!last_position.similar(position, 0.15))
-		{
-			sky_rays_uptodate = 0;
-			update(O);
-			last_position = position;
+		// moved more than 0.15 m since the last update
+		sky_rays_uptodate = 0;
+		update(O);
+		last_position = position;
 
-			if (result_count < lt_hemisamples)
-				ticks_to_update = ::Random.randI(s_iUTFirstTimeMin, s_iUTFirstTimeMax + 1);
-			else
-				ticks_to_update = ::Random.randI(s_iUTPosChangedMin, s_iUTPosChangedMax + 1);
-		}
+		if (result_count < lt_hemisamples)
+			ticks_to_update = ::Random.randI(s_iUTFirstTimeMin, s_iUTFirstTimeMax + 1);
+		else
+			ticks_to_update = ::Random.randI(s_iUTPosChangedMin, s_iUTPosChangedMax + 1);
 	}
 }
 
