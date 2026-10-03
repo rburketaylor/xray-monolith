@@ -575,6 +575,9 @@ CUICellContainer::CUICellContainer(CUIDragDropListEx* parent)
 	hShader->create("hud\\fog_of_war", "ui\\ui_grid");
 	//	hShader_selected->create	( "hud\\fog_of_war", "ui_grid_selected" );
 	m_cellSpacing.set(0, 0);
+	m_last_update_range.set(0, 0, 0, 0);
+	m_last_update_child_count = 0;
+	m_update_range_valid = false;
 }
 
 CUICellContainer::~CUICellContainer()
@@ -960,6 +963,89 @@ Ivector2 CUICellContainer::PickCell(const Fvector2& abs_pos)
 	return res;
 }
 
+
+void CUICellContainer::Update()
+{
+	PROF_EVENT("CUICellContainer::Update");
+
+	UpdateCursorFocus();
+
+	Frect clientArea;
+	m_pParentDragDropList->GetClientArea(clientArea);
+
+	Ivector2 cell_cnt = m_pParentDragDropList->CellsCapacity();
+
+	Ivector2 cell_sz = CellSize();
+	cell_sz.add(m_cellSpacing);
+
+	Irect tgt_cells;
+	tgt_cells.lt = TopVisibleCell();
+	tgt_cells.x2 = iFloor((float(clientArea.width()) + float(cell_sz.x) - EPS) / float(cell_sz.x)) + tgt_cells.lt.x;
+	tgt_cells.y2 = iFloor((float(clientArea.height()) + float(cell_sz.y) - EPS) / float(cell_sz.y)) + tgt_cells.lt.y;
+
+	clamp(tgt_cells.x2, 0, cell_cnt.x - 1);
+	clamp(tgt_cells.y2, 0, cell_cnt.y - 1);
+
+	{
+		xrCriticalSectionGuard guard(csUi);
+
+		// Update everything for one frame whenever the visible range or the item
+		// count changed (scroll, grow, take/drop), so items entering the view or
+		// being reshuffled refresh their text and condition state. Otherwise only
+		// items with any cell inside the visible range are updated - Draw() culls
+		// the same way.
+		const u32 child_count = (u32)m_ChildWndList.size();
+		bool update_all =
+			!m_update_range_valid ||
+			m_last_update_child_count != child_count ||
+			tgt_cells.x1 != m_last_update_range.x1 || tgt_cells.y1 != m_last_update_range.y1 ||
+			tgt_cells.x2 != m_last_update_range.x2 || tgt_cells.y2 != m_last_update_range.y2;
+
+		m_update_range_valid = true;
+		m_last_update_child_count = child_count;
+		m_last_update_range = tgt_cells;
+
+		if (update_all || cell_cnt.x == 0 || cell_cnt.y == 0)
+		{
+			for (WINDOW_LIST_it it = m_ChildWndList.begin(); m_ChildWndList.end() != it; ++it)
+			{
+				if (!(*it)->IsShown()) continue;
+				(*it)->Update();
+			}
+		}
+		else
+		{
+			// a multi-cell item partly in view is drawn, so it is updated too;
+			// collect each item once however many of its cells are in range
+			GetCellsInRange(tgt_cells, m_cells_to_update);
+			m_items_to_update.clear_not_free();
+			for (UI_CELLS_VEC_IT it = m_cells_to_update.begin(); m_cells_to_update.end() != it; ++it)
+			{
+				CUICell& cell = (*it);
+				if (!cell.Empty())
+					m_items_to_update.push_back(cell.m_item);
+			}
+
+			// keep the dragged item updating even when its cell scrolled out of view
+			if (m_pParentDragDropList->m_drag_item)
+			{
+				CUICellItem* drag_src = m_pParentDragDropList->m_drag_item->ParentItem();
+				if (drag_src && drag_src->OwnerList() == m_pParentDragDropList)
+					m_items_to_update.push_back(drag_src);
+			}
+
+			std::sort(m_items_to_update.begin(), m_items_to_update.end());
+			m_items_to_update.erase(std::unique(m_items_to_update.begin(), m_items_to_update.end()), m_items_to_update.end());
+			for (CUICellItem* item : m_items_to_update)
+			{
+				if (item->IsShown())
+					item->Update();
+			}
+		}
+	}
+
+	CollectGarbage();
+}
 
 void CUICellContainer::Draw()
 {

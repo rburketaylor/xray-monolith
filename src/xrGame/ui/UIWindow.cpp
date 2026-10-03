@@ -259,6 +259,24 @@ void CUIWindow::Draw(float x, float y)
 void CUIWindow::Update()
 {
 	PROF_EVENT("CUIWindow::Update");
+	UpdateCursorFocus();
+
+    {
+        xrCriticalSectionGuard guard(csUi);
+        for (WINDOW_LIST_it it = m_ChildWndList.begin(); m_ChildWndList.end() != it; ++it)
+        {
+            if (!(*it)->IsShown()) continue;
+            (*it)->Update();
+        }
+    }
+
+    CollectGarbage();
+}
+
+// Extracted from Update so subclasses which cull their child updates keep the
+// same cursor focus handling.
+void CUIWindow::UpdateCursorFocus()
+{
 	CUIDialogWnd* TIR = CurrentGameUI() ? CurrentGameUI()->TopInputReceiver() : nullptr;
 
 	if (GetUICursor().IsVisible() || (TIR && !TIR->NeedCursor()))
@@ -278,17 +296,6 @@ void CUIWindow::Update()
 				OnFocusLost();
 		}
 	}
-
-    {
-        xrCriticalSectionGuard guard(csUi);
-        for (WINDOW_LIST_it it = m_ChildWndList.begin(); m_ChildWndList.end() != it; ++it)
-        {
-            if (!(*it)->IsShown()) continue;
-            (*it)->Update();
-        }
-    }
-
-    CollectGarbage();
 }
 
 void CUIWindow::CollectGarbage()

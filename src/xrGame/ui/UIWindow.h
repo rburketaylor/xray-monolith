@@ -275,6 +275,7 @@ public:
 	virtual void Draw(float x, float y);
 	//обновление окна передпрорисовкой
 	virtual void Update();
+	void UpdateCursorFocus();
 
 
 	void SetPPMode();

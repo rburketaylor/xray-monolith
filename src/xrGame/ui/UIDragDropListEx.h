@@ -178,6 +178,11 @@ private:
 	typedef CUIWindow inherited;
 	ui_shader hShader;
 	UI_CELLS_VEC m_cells_to_draw;
+	UI_CELLS_VEC m_cells_to_update;
+	xr_vector<CUICellItem*> m_items_to_update;
+	Irect m_last_update_range;
+	u32 m_last_update_child_count;
+	bool m_update_range_valid;
 protected:
 	CUIDragDropListEx* m_pParentDragDropList;
 
@@ -202,6 +207,7 @@ public:
 
 protected:
 	virtual void Draw();
+	virtual void Update();
 
 	IC const Ivector2& CellsCapacity() { return m_cellsCapacity; };
 	void SetCellsCapacity(const Ivector2& c);
