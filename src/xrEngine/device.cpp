@@ -56,6 +56,7 @@ ref_light precache_light = 0;
 BOOL mt_calc_bones = TRUE;
 BOOL psLua_ParallelGC = TRUE;
 BOOL psLua_ParallelGC_debug = FALSE;
+extern int psLua_ParallelGC_CallAmount;
 
 extern discord::Core* discord_core;
 extern bool use_discord;
@@ -547,6 +548,26 @@ void CRenderDevice::on_idle()
 	Device.isRendering = false;
 
 	secondary_tasks.wait();
+
+	// main-thread fallback: when the render window was too short for the
+	// parallel GC to finish its steps this frame, continue them here (after
+	// wait() the secondary task is done, so the lua_State is not in use).
+	// This is on the critical path, so cap it by time; Lua's own
+	// allocation-driven steps still cover whatever is left.
+	if (psLua_ParallelGC && Device.LuaGC && !Device.LuaGCDone)
+	{
+		static const float s_lua_gc_fallback_budget_sec = 0.0005f;
+		CTimerBase fallback_timer;
+		fallback_timer.Start();
+		while (!Device.LuaGCDone && Device.LuaGCCount < psLua_ParallelGC_CallAmount)
+		{
+			Device.LuaGCCount++;
+			if (Device.LuaGC() == 1)
+				Device.LuaGCDone = true;
+			if (fallback_timer.GetElapsed_sec() >= s_lua_gc_fallback_budget_sec)
+				break;
+		}
+	}
 
 	if (psLua_ParallelGC_debug && psLua_ParallelGC && Device.LuaGCDebug)
 	{

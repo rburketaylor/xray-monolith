@@ -9,6 +9,7 @@
 
 #include "pure.h"
 #include "../xrCore/xrSyncronize.h"
+#include "../xrCore/_thread_types.h"
 //#include "hw.h"
 #include "../xrcore/ftimer.h"
 #include "stats.h"
@@ -241,7 +242,7 @@ public:
 	xr_delegate<void()> ParticleWorkerCallback;
 	xr_delegate<void()> ModelDefferClear;
 
-	bool isRendering;
+	xr_atomic_bool isRendering = false;
 
 	// LuaGC
 	int LuaGCCount;
