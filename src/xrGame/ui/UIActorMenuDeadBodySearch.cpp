@@ -101,6 +101,7 @@ void CUIActorMenu::FilterDeadBodyList(int mode)
 
 void CUIActorMenu::InitDeadBodySearchMode()
 {
+	CPerfScopeTimer perfTimer("CUIActorMenu::InitDeadBodySearchMode");
 	m_pDeadBodyBagList->Show(true);
 	m_LeftBackground->Show(true);
 	m_PartnerBottomInfo->Show(true);
@@ -237,6 +238,7 @@ bool CUIActorMenu::ToDeadBodyBag(CUICellItem* itm, bool b_use_cursor_pos)
 
 void CUIActorMenu::UpdateDeadBodyBag()
 {
+	CPerfScopeTimer perfTimer("CUIActorMenu::UpdateDeadBodyBag");
 	string64 buf;
 
 	LPCSTR kg_str = CStringTable().translate("st_kg").c_str();
@@ -307,6 +309,7 @@ void CUIActorMenu::TakeAllFromPartner(CUIWindow* w, void* d)
 
 void CUIActorMenu::TakeAllFromInventoryBox()
 {
+	CPerfScopeTimer perfTimer("CUIActorMenu::TakeAllFromInventoryBox");
 	u16 actor_id = m_pActorInvOwner->object_id();
 
 	u32 const cnt = m_pDeadBodyBagList->ItemsCount();

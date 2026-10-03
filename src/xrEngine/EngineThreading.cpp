@@ -50,6 +50,7 @@ struct SpatialSnapshot
 };
 void XRay::Engine::CalculateBonesThread()
 {
+	CPerfScopeTimer perfTimer("CalculateBonesThread");
 	PROF_THREAD("Secondary Task 3");
 
 	PROF_EVENT("CalculateBones");

@@ -610,6 +610,8 @@ bool CUICellContainer::AddSimilar(CUICellItem* itm)
 
 CUICellItem* CUICellContainer::FindSimilar(CUICellItem* itm)
 {
+	static CPerfAccumTimer perfAccum("CUICellContainer::FindSimilar");
+	CPerfAccumScope perfScope(perfAccum, Device.dwFrame);
 	xrCriticalSectionGuard guard(csUi);
 	for (WINDOW_LIST_it it = m_ChildWndList.begin(); m_ChildWndList.end() != it; ++it)
 	{

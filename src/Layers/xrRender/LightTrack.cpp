@@ -190,6 +190,8 @@ void CROS_impl::update(IRenderable* O)
 	VERIFY(smart_cast<CROS_impl*> (O->renderable_ROS()));
 	//float	dt			=	Device.fTimeDelta;
 	PROF_EVENT("CROS_impl::update");
+	static CPerfAccumTimer perfAccum("CROS_impl::update");
+	CPerfAccumScope perfScope(perfAccum, Device.dwFrame);
 	CObject* _object = O->dcast_CObject();
 
 	// select sample, randomize position inside object

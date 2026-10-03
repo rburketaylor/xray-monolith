@@ -234,4 +234,45 @@ public:
 	}
 };
 
+// Gated hot-path timers, controlled by the "perf_timers" console variable (default 0).
+// Scope timer logs "[perf] <name> <ms>" on destruction when enabled and the elapsed
+// time is at least perf_timer_min_ms. Accumulated timers sum several calls of one
+// name within a frame and log the frame total when the frame id advances.
+extern XRCORE_API int g_perf_timers;
+
+class XRCORE_API CPerfScopeTimer
+{
+	const char* m_name;
+	u64 m_start;
+
+public:
+	CPerfScopeTimer(const char* name);
+	~CPerfScopeTimer();
+};
+
+class XRCORE_API CPerfAccumTimer
+{
+	friend class CPerfAccumScope;
+	const char* m_name;
+	u32 m_frame;
+	u32 m_hits;
+	float m_ms;
+
+public:
+	CPerfAccumTimer(const char* name) : m_name(name), m_frame(0), m_hits(0), m_ms(0.f) { }
+};
+
+// Feeds one measured scope into a CPerfAccumTimer; flushes the previous frame's total
+// when the frame id passed to the constructor differs from the accumulator's frame.
+class XRCORE_API CPerfAccumScope
+{
+	CPerfAccumTimer& m_owner;
+	u32 m_frame;
+	u64 m_start;
+
+public:
+	CPerfAccumScope(CPerfAccumTimer& owner, u32 frame);
+	~CPerfAccumScope();
+};
+
 #endif // FTimerH
