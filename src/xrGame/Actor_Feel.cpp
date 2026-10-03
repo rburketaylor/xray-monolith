@@ -181,8 +181,11 @@ void CActor::PickupModeUpdate_COD(pickup_result_t pickup_result)
 	CFrustum frustum;
 	frustum.CreateFromMatrix(Device.mFullTransform, FRUSTUM_P_LRTB | FRUSTUM_P_FAR);
 
+	// a 2.5 m sphere query returns the same candidates the old frustum query
+	// could produce within the 2 m pickup distance (the margin covers item
+	// radius); the exact distance and view filters are applied below
 	ISpatialResult.clear_not_free();
-	g_SpatialSpace->q_frustum(ISpatialResult, 0, STYPE_COLLIDEABLE, frustum);
+	g_SpatialSpace->q_sphere(ISpatialResult, 0, STYPE_COLLIDEABLE, Position(), 2.5f);
 
 	float maxlen = 1000.0f;
 	CInventoryItem* pNearestItem = NULL;
@@ -190,29 +193,37 @@ void CActor::PickupModeUpdate_COD(pickup_result_t pickup_result)
 	for (u32 o_it = 0; o_it < ISpatialResult.size(); o_it++)
 	{
 		const ISpatialShared& spatial = ISpatialResult[o_it];
-		CInventoryItem* pIItem = smart_cast<CInventoryItem*>(spatial->dcast_CObject());
-
-		if (0 == pIItem) continue;
-		if (pIItem->object().H_Parent() != NULL) continue;
-		if (!pIItem->CanTake()) continue;
-		if (smart_cast<CExplosiveRocket*>(&pIItem->object())) continue;
-
-		CGrenade* pGrenade = smart_cast<CGrenade*>(spatial->dcast_CObject());
-		if (pGrenade && !pGrenade->Useful()) continue;
-
-		CMissile* pMissile = smart_cast<CMissile*>(spatial->dcast_CObject());
-		if (pMissile && !pMissile->Useful()) continue;
+		CObject* pObj = spatial->dcast_CObject();
 
 		Fvector A, B, tmp;
-		pIItem->object().Center(A);
+		if (!pObj) continue;
+		pObj->Center(A);
 		if (A.distance_to_sqr(Position()) > 4) continue;
 
+		// keep the old frustum query's semantics: in front of the camera and
+		// inside the view frustum (the perpendicular-distance test below does
+		// not reject items behind the camera on its own)
 		tmp.sub(A, cam_Active()->vPosition);
+		if (tmp.dotproduct(cam_Active()->vDirection) <= 0) continue;
+		if (!frustum.testSphere_dirty(A, pObj->Radius())) continue;
+
 		B.mad(cam_Active()->vPosition, cam_Active()->vDirection, tmp.dotproduct(cam_Active()->vDirection));
 		float len = B.distance_to_sqr(A);
 		if (len > 1) continue;
 
-		if (maxlen > len && !pIItem->object().getDestroy())
+		CInventoryItem* pIItem = smart_cast<CInventoryItem*>(pObj);
+		if (0 == pIItem) continue;
+		if (pIItem->object().H_Parent() != NULL) continue;
+		if (!pIItem->CanTake()) continue;
+		if (smart_cast<CExplosiveRocket*>(pObj)) continue;
+
+		CGrenade* pGrenade = smart_cast<CGrenade*>(pObj);
+		if (pGrenade && !pGrenade->Useful()) continue;
+
+		CMissile* pMissile = smart_cast<CMissile*>(pObj);
+		if (pMissile && !pMissile->Useful()) continue;
+
+		if (maxlen > len && !pObj->getDestroy())
 		{
 			maxlen = len;
 			pNearestItem = pIItem;
