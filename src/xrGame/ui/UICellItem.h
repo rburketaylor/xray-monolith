@@ -7,6 +7,7 @@ class CUIDragItem;
 class CUIDragDropListEx;
 class CUICellItem;
 class CUIProgressBar;
+class CUIXml;
 
 class ICustomDrawCellItem
 {
@@ -121,3 +122,7 @@ public:
 	CUIDragDropListEx* BackList() { return m_back_list; }
 	Fvector2 GetPosition();
 };
+
+// Parses actor_menu_item.xml once and shares the document between cell item
+// construction paths (CUICellItem::init and CUIInventoryCellItem's condition bar).
+CUIXml& GetActorMenuItemXml();

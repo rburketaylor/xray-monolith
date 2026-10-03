@@ -22,6 +22,19 @@
 
 CUICellItem* CUICellItem::m_mouse_selected_item = NULL;
 
+CUIXml& GetActorMenuItemXml()
+{
+	static CUIXml uiXml;
+	static bool isXmlReady = false;
+
+	if (!isXmlReady)
+	{
+		uiXml.Load(CONFIG_PATH, UI_PATH, "actor_menu_item.xml");
+		isXmlReady = true;
+	}
+	return uiXml;
+}
+
 CUICellItem::CUICellItem()
 {
 	m_pParentList = NULL;
@@ -53,14 +66,7 @@ CUICellItem::~CUICellItem()
 
 void CUICellItem::init()
 {
-    static CUIXml uiXml;
-    static bool isXmlReady = false;
-
-    if (!isXmlReady)
-    {
-        uiXml.Load(CONFIG_PATH, UI_PATH, "actor_menu_item.xml");
-        isXmlReady = true;
-    }
+    CUIXml& uiXml = GetActorMenuItemXml();
 
     m_text = xr_new<CUIStatic>();
     m_text->SetAutoDelete(true);
