@@ -324,12 +324,12 @@ Fvector CMemoryManager::memory_position(const CObject* object) const
 
 void CMemoryManager::remove_links(CObject* object)
 {
-	if (m_object->g_Alive())
-	{
-		visual().remove_links(object);
-		sound().remove_links(object);
-		hit().remove_links(object);
-	}
+	// Clean dead owners too: they can still hold raw CObject* entries, and
+	// readers (e.g. the offline-object predicate) dereference them. The
+	// sub-managers already handle empty/absent lists.
+	visual().remove_links(object);
+	sound().remove_links(object);
+	hit().remove_links(object);
 
 	danger().remove_links(object);
 	enemy().remove_links(object);
