@@ -270,11 +270,10 @@ public:
 	void SortSpawnEventsQueue();
 private:
 	xr_atomic_bool closeSignal = false;
-	int GetSpawnEventPriority(const NET_Event& e) const;
+	int GetSpawnEventPriority(NET_Packet& P, const NET_Event& e) const;
 	bool PostponedSpawnFind(u16 id, const NET_Event& E) const;
 	bool PostponedSpawnFind(u16 id, NET_Packet& P) const;
-	bool SpawnEventCompare(const NET_Event& a, const NET_Event& b) const;
-#endif	
+#endif
 
 public:
 	//-AVO

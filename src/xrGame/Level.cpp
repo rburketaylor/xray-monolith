@@ -521,14 +521,12 @@ bool CLevel::PostponedSpawn(u16 id)
     return it != queue->end() || it2 != queue2.end();
 }
 
-int CLevel::GetSpawnEventPriority(const NET_Event& e) const
+int CLevel::GetSpawnEventPriority(NET_Packet& P, const NET_Event& e) const
 {
     if (e.ID == M_EVENT)
         return 0;
 
     if (e.ID == M_SPAWN) {
-        auto data = make_intrusive<ProcessNetPacket>();
-        NET_Packet& P = data->P;
         e.implication(P);
 
         u16 parent_id = 0;
@@ -543,17 +541,38 @@ int CLevel::GetSpawnEventPriority(const NET_Event& e) const
     return 0;
 }
 
-bool CLevel::SpawnEventCompare(const NET_Event& a, const NET_Event& b) const
-{
-    return GetSpawnEventPriority(a) > GetSpawnEventPriority(b);
-}
-
 // demonized: If called manually, be aware of ProcessPrefetchEvents thread, which may modify spawn_events queue at the same time, maybe fix later
 void CLevel::SortSpawnEventsQueue()
 {
     xrSRWLockGuard g(prefetch_lock);
     auto& queue = spawn_events->queue;
-    std::stable_sort(queue.begin(), queue.end(), [this](const NET_Event& a, const NET_Event& b) { return SpawnEventCompare(a, b); });
+    if (queue.size() < 2)
+        return;
+
+    // GetSpawnEventPriority parses the spawn packet and docks a shared_str on
+    // every call. Inside the comparator that made std::stable_sort allocate and
+    // parse a packet O(n log n) times while holding prefetch_lock. Compute each
+    // priority once with one scratch packet, then stable-sort indices by them
+    // (index order is original order, so ties keep it: same result as the old
+    // comparator).
+    auto data = make_intrusive<ProcessNetPacket>();
+    NET_Packet& P = data->P;
+
+    xr_vector<u8> priorities(queue.size());
+    for (size_t i = 0; i < queue.size(); ++i)
+        priorities[i] = u8(GetSpawnEventPriority(P, queue[i]));
+
+    xr_vector<size_t> order(queue.size());
+    for (size_t i = 0; i < order.size(); ++i)
+        order[i] = i;
+
+    std::stable_sort(order.begin(), order.end(), [&priorities](size_t l, size_t r) { return priorities[l] > priorities[r]; });
+
+    xr_vector<NET_Event> sorted;
+    sorted.reserve(queue.size());
+    for (size_t i : order)
+        sorted.push_back(std::move(queue[i]));
+    queue.swap(sorted);
 }
 
 void CLevel::ProcessPrefetchEvents(void* args)
