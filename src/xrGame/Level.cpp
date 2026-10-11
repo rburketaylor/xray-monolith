@@ -797,6 +797,12 @@ void CLevel::ProcessGameEvents()
 
 	// Game events
 	{
+		// One packet set per frame, reused per event: implication() resets P's
+		// data, count and read position, and E / PRespond are fully re-assigned
+		// before each use, so nothing leaks between iterations. Keeps the
+		// ~48 KB aggregate off both the stack and the per-event heap path.
+		auto data = make_intrusive<ProcessGameEventsData>();
+
 		for (auto it = events_to_process.begin(); it != events_to_process.end(); )
 		{
 			PROF_EVENT("ProcessGameEvents game_events queue");
@@ -804,7 +810,6 @@ void CLevel::ProcessGameEvents()
 			u16 dest = it->destination;
 			u16 type = it->type;
 
-			auto data = make_intrusive<ProcessGameEventsData>();
 			auto& P = data->P;
 			it->implication(P);
 
