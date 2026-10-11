@@ -12,27 +12,6 @@
 
 CSoundCollectionStorage* g_sound_collection_storage = 0;
 
-class collection_predicate
-{
-private:
-	typedef CSoundCollectionStorage::CSoundCollectionParams CSoundCollectionParams;
-	typedef CSoundCollectionStorage::SOUND_COLLECTION_PAIR SOUND_COLLECTION_PAIR;
-
-private:
-	const CSoundCollectionParams* m_params;
-
-public:
-	IC collection_predicate(const CSoundCollectionParams& params)
-	{
-		m_params = &params;
-	}
-
-	IC bool operator()(const SOUND_COLLECTION_PAIR& pair) const
-	{
-		return (*m_params == pair.first);
-	}
-};
-
 CSoundCollectionStorage::~CSoundCollectionStorage()
 {
 	delete_data(m_objects);
@@ -41,10 +20,13 @@ CSoundCollectionStorage::~CSoundCollectionStorage()
 const CSoundCollectionStorage::SOUND_COLLECTION_PAIR&
 CSoundCollectionStorage::object(const CSoundCollectionParams& params)
 {
-	OBJECTS::const_iterator I = std::find_if(m_objects.begin(), m_objects.end(), collection_predicate(params));
-	if (I != m_objects.end())
-		return (*I);
+	const CKey key(params);
+
+	LOOKUP::const_iterator I = m_lookup.find(key);
+	if (I != m_lookup.end())
+		return (m_objects[I->second]);
 
 	m_objects.push_back(std::make_pair(params, xr_new<CSoundCollection>(params)));
+	m_lookup.emplace(key, m_objects.size() - 1);
 	return (m_objects.back());
 }
