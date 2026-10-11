@@ -368,9 +368,23 @@ void CUIWindow::DetachAll()
 {
 	xrCriticalSectionGuard guard(csUi);
 
+	// Bulk detach in reverse order. DetachChild() locates the child with a
+	// linear scan and SetParent() scans the list again, which makes detaching
+	// all children quadratic in the child count. The end state is identical
+	// (children detached back-to-front, parents cleared, autodelete children
+	// queued once).
 	while (!m_ChildWndList.empty())
 	{
-		DetachChild(m_ChildWndList.back());
+		CUIWindow* pChild = m_ChildWndList.back();
+		m_ChildWndList.pop_back();
+
+		erase_capture_subtree(pChild);
+
+		pChild->m_pParentWnd = NULL;
+
+		if (pChild->m_bAutoDelete)
+			if (std::find(m_ChildWndToDelete.begin(), m_ChildWndToDelete.end(), pChild) == m_ChildWndToDelete.end())
+				m_ChildWndToDelete.push_back(pChild);
 	}
 }
 

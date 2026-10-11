@@ -441,7 +441,9 @@ void CMapLocation::UpdateSpot(CUICustomMap* map, CMapSpot* sp, CMapSpotPointer* 
 				float h_ = map->GetHeading() + h;
 				sp->SetHeading(h_);
 			}
-			map->AttachChild(sp);
+			// unchecked: every caller of UpdateSpot rebuilds on a map whose
+			// child list was just emptied by DetachAll
+			map->AttachChildUnchecked(sp);
 		}
 
 		if (IsGameTypeSingle())
@@ -450,7 +452,8 @@ void CMapLocation::UpdateSpot(CUICustomMap* map, CMapSpot* sp, CMapSpotPointer* 
 			if (s)
 			{
 				s->SetWndPos(sp->GetWndPos());
-				map->AttachChild(s);
+				// unchecked: list was just emptied by the caller's DetachAll
+				map->AttachChildUnchecked(s);
 			}
 		}
 
@@ -529,7 +532,8 @@ void CMapLocation::UpdateSpotPointer(CUICustomMap* map, CMapSpotPointer* sp)
 		sp->SetWndPos(pointer_pos);
 		sp->SetHeading(heading);
 
-		map->AttachChild(sp);
+		// unchecked: guarded above by the parent check, list emptied by DetachAll
+		map->AttachChildUnchecked(sp);
 
 		Fvector2 tt = map->ConvertLocalToReal(m_position_on_map, map->BoundRect());
 		Fvector ttt;
