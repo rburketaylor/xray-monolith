@@ -54,7 +54,6 @@ private:
 	POOL Pool; // Unused / Inactive
 	BOOL bLogging;
 	BOOL bForceDiscard;
-	BOOL bAllowChildrenDuplicate;
 	xrCriticalSection deffered_del_lock;
 	xrSRWLock ModelsLock;
 

@@ -27,6 +27,12 @@
 	#include "IGame_Persistent.h"
 #endif
 
+// Per-thread load state: while a thread loads a base model (Create -> Instance_Load),
+// nested CreateChild() calls must not duplicate the children they load. It cannot be
+// a shared member - the spawn prefetch thread (see Prefetch_One) loads models at the
+// same time as the main thread.
+static thread_local BOOL bAllowChildrenDuplicate = TRUE;
+
 dxRender_Visual* CModelPool::Instance_Create(u32 type)
 {
 	dxRender_Visual* V = NULL;
@@ -240,7 +246,6 @@ CModelPool::CModelPool()
 {
 	bLogging = TRUE;
 	bForceDiscard = FALSE;
-	bAllowChildrenDuplicate = TRUE;
 	g_pMotionsContainer = xr_new<motions_container>();
 }
 
@@ -480,17 +485,30 @@ void CModelPool::Prefetch()
 	for (CInifile::SectCIt I = sect.Data.begin(); I != sect.Data.end(); I++)
 	{
 		const CInifile::Item& item = *I;
-		dxRender_Visual* V = Create(item.first.c_str());
-		Delete(V,FALSE);
+		Prefetch_One(item.first.c_str());
 	}
 	Logging(TRUE);
 }
 
 void CModelPool::Prefetch_One(LPCSTR N, bool assert)
 {
-	dxRender_Visual* V = Create(N, 0, assert);
-	if (V)
-		Delete(V,FALSE);
+	// Warm the base model only: Create()/Delete() also touch Pool and Registry, which
+	// are main-thread containers with no lock of their own. This runs on the spawn
+	// prefetch thread (CLevel::ProcessPrefetchEvents) and on the PPL task that calls
+	// models_Prefetch(), so it must stay out of them. A resident base still removes
+	// the disk read from the main thread's Create(): it only has to duplicate it.
+	string_path low_name;
+	VERIFY(xr_strlen(N) < sizeof(low_name));
+	xr_strcpy(low_name, N);
+	strlwr(low_name);
+	if (strext(low_name)) *strext(low_name) = 0;
+
+	if (Instance_Find(low_name))	// already loaded (Models is guarded by ModelsLock)
+		return;
+
+	bAllowChildrenDuplicate = FALSE;
+	Instance_Load(low_name, TRUE, assert);	// registers into Models under ModelsLock
+	bAllowChildrenDuplicate = TRUE;
 }
 
 bool CModelPool::Exists(LPCSTR N)
