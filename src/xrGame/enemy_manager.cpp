@@ -225,6 +225,7 @@ void CEnemyManager::reload(LPCSTR section)
 	m_last_enemy = 0;
 	m_last_enemy_change = 0;
 	m_useful_callback.clear();
+	m_useful_cache.clear();
 	VERIFY(m_ready_to_save);
 }
 
@@ -251,6 +252,10 @@ void CEnemyManager::remove_links(CObject* object)
 
 	if (m_selected == object)
 		m_selected = 0;
+
+	// Drop this entity's cached verdict: the entry is keyed by entity ID and
+	// object IDs are recycled, so a new object could inherit its result.
+	m_useful_cache.erase(object->ID());
 }
 
 void CEnemyManager::ignore_monster_threshold(const float& ignore_monster_threshold)
