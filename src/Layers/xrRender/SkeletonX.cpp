@@ -39,6 +39,9 @@ struct SBonesUploadStamp
 	u32 frame;
 	CKinematics* instance;
 	u32 bone_count;
+	// Coverage of the previous-transform array. Only normal-phase draws write
+	// it, so it is tracked apart from the current-array coverage.
+	u32 bone_count_prev;
 };
 xr_unordered_map<dx10ConstantBuffer*, SBonesUploadStamp> s_bones_upload_stamps;
 } // namespace
@@ -159,6 +162,7 @@ void CSkeletonX::_Render(ref_geom& hGeom, u32 vCount, u32 iOffset, u32 pCount)
 
 				bool upload_bones = true;
 #ifdef USE_DX11
+				bool upload_bones_prev = true;
 				// vertex-only destination: the one buffer we key on is the only one written
 				if (array && (array->destination & (RC_dest_pixel | RC_dest_geometry | RC_dest_hull | RC_dest_domain | RC_dest_compute)) == 0)
 				{
@@ -169,6 +173,21 @@ void CSkeletonX::_Render(ref_geom& hGeom, u32 vCount, u32 iOffset, u32 pCount)
 					stamp.frame = Device.dwFrame;
 					stamp.instance = Parent;
 					stamp.bone_count = same_writer ? _max(stamp.bone_count, count) : count;
+					if (!same_writer)
+						stamp.bone_count_prev = 0; // the new writer owns the previous array too
+
+					// For the shipped skinning shaders the previous-transform array
+					// shares this vertex buffer, and a repeated normal-phase draw of
+					// the same skeleton can reuse the rows an earlier one wrote. Only
+					// the normal phase writes it (shadow passes skip it), so its
+					// coverage is tracked separately from the current array's.
+					if (array_prev && (array_prev->destination & (RC_dest_pixel | RC_dest_geometry | RC_dest_hull | RC_dest_domain | RC_dest_compute)) == 0 &&
+						((array_prev->destination & RC_dest_vertex_cb_index_mask) >> RC_dest_vertex_cb_index_shift) == cb_index &&
+						RImplementation.phase == RImplementation.PHASE_NORMAL)
+					{
+						upload_bones_prev = count > stamp.bone_count_prev;
+						stamp.bone_count_prev = _max(stamp.bone_count_prev, count);
+					}
 				}
 #endif
 
@@ -187,10 +206,11 @@ void CSkeletonX::_Render(ref_geom& hGeom, u32 vCount, u32 iOffset, u32 pCount)
 #ifdef USE_DX11
 				if (RImplementation.phase == RImplementation.PHASE_NORMAL)
 				{
-					if (RImplementation.o.ssfx_motionvectors)
+					if (RImplementation.o.ssfx_motionvectors && array_prev && upload_bones_prev)
 					{
-						// Previous transforms feed motion vectors; they are only
-						// written in the normal phase, so keep them unguarded.
+						// Previous transforms feed motion vectors. Repeated draws of
+						// the same skeleton in this phase reuse the rows an earlier
+						// draw wrote, like the current-transform upload above.
 						for (u32 mid = 0; mid < count; mid++)
 						{
 							Fmatrix& Mprev = Parent->LL_GetBoneInstance(u16(mid)).mRenderTransform_prev;
