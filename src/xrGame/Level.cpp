@@ -80,6 +80,7 @@ u32 lvInterpSteps = 0;
 #ifdef SPAWN_ANTIFREEZE
 BOOL spawn_antifreeze = TRUE;
 BOOL spawn_antifreeze_debug = FALSE;
+int spawn_antifreeze_budget_ms = 2; // 0 = drain the whole client spawn queue in one frame (old behaviour)
 
 struct spawn_and_prefetch_events
 {
@@ -659,11 +660,29 @@ void CLevel::ProcessSpawnEvents()
         }
 	}
 
-	for (const auto& E : events_to_process)
+	CTimer budget_timer;
+	budget_timer.Start();
+	size_t first_unprocessed = events_to_process.size();
+
+	// One ALife switch can hand over a whole squad plus every item those NPCs
+	// carry, and every event here is a full net_Spawn. Draining the whole queue
+	// in one frame is a guaranteed hitch, so stop once the frame budget is used
+	// up and push the rest back for the next frames. At least one event is
+	// always spawned, so the queue cannot stall (budget 0 disables the limit).
+	auto data = make_intrusive<ProcessNetPacket>(); // hoisted: reused per event, implication() resets data, count and r_pos
+	NET_Packet& P = data->P;
+
+	for (size_t event_index = 0; event_index < events_to_process.size(); ++event_index)
 	{
-		auto data = make_intrusive<ProcessNetPacket>();
+		if (event_index > 0 && spawn_antifreeze_budget_ms > 0 &&
+		    budget_timer.GetElapsed_ms() >= u32(spawn_antifreeze_budget_ms))
+		{
+			first_unprocessed = event_index;
+			break;
+		}
+
+		const auto& E = events_to_process[event_index];
 		u16 ID, dest, type;
-		NET_Packet& P = data->P;
 		ID = E.ID;
 		dest = E.destination;
 		type = E.type;
@@ -712,6 +731,33 @@ void CLevel::ProcessSpawnEvents()
 		u16 dummy16;
 		P.r_begin(dummy16);
 		cl_Process_Spawn(P);
+	}
+
+	if (first_unprocessed < events_to_process.size())
+	{
+		if (spawn_antifreeze_debug) Msg("[ProcessSpawnEvents] budget used, postponing %u of %u events",
+			u32(events_to_process.size() - first_unprocessed), u32(events_to_process.size()));
+
+		xrSRWLockGuard g(prefetch_lock);
+
+		// spawn_events_data is consumed per frame; restore the entries that belong
+		// to postponed events so their alife checks still run next frame. P is the
+		// hoisted packet again: implication() resets it before every parse.
+		for (size_t event_index = first_unprocessed; event_index < events_to_process.size(); ++event_index)
+		{
+			const auto& E = events_to_process[event_index];
+			E.implication(P);
+			u16 parent_id;
+			shared_str section;
+			u16 obj_id = GetSpawnInfo(P, parent_id, section);
+			auto data_it = spawn_events_data_copy.find(obj_id);
+			if (data_it != spawn_events_data_copy.end())
+				spawn_events_data->emplace(data_it->first, data_it->second);
+		}
+
+		spawn_events->queue.insert(spawn_events->queue.begin(),
+			std::make_move_iterator(events_to_process.begin() + first_unprocessed),
+			std::make_move_iterator(events_to_process.end()));
 	}
 }
 #endif
