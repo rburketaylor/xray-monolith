@@ -306,7 +306,10 @@ dxRender_Visual* CModelPool::Create(const char* name, IReader* data, bool assert
 			else Base = Instance_Load(low_name, TRUE, assert);
 			if (!Base)
 			{
-				// If not found and assert is false, return nullptr
+				// If not found and assert is false, return nullptr.
+				// Restore the flag first: with it left FALSE, later CreateChild
+				// calls would hand out the shared base model instead of a copy.
+				bAllowChildrenDuplicate = TRUE;
 				return nullptr;
 			}
 			bAllowChildrenDuplicate = TRUE;
