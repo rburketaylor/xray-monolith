@@ -149,6 +149,9 @@ void xrLogger::Msg(LPCSTR Msg, va_list argList)
 
 	formattedMessage[MsgSize] = 0;
 
+	// Output to the attached debugger only (same gate as the log thread below).
+	// Without this every Msg() is a debug-event round trip on the calling thread.
+	if (IsDebuggerPresent() && !bFastDebugLog)
 	{
 		OutputDebugStringA(formattedMessage);
 		OutputDebugStringA("\n");
