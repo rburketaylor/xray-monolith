@@ -16,6 +16,9 @@
 #include "blenders\blender_recorder.h"
 #include "../../xrCore/_thread_types.h"
 
+// Defined in ResourceManager_Resources.cpp (DX9) / dx10ResourceManager_Resources.cpp (DX10/DX11).
+extern xr_task_group textures_load_tasks;
+
 //	Already defined in Texture.cpp
 void fix_texture_name(LPSTR fn);
 
@@ -411,6 +414,14 @@ void CResourceManager::DeferredUpload()
 	});
 
 	Msg("texture loading time: %d", timer.GetElapsed_ms());
+
+	// Loads queued by _CreateTexture()/apply_load() run on textures_load_tasks and
+	// return immediately while bLoading is set, so the walk above reports ~0 ms and
+	// the decodes keep running on PPL threads after the loading screen ends, where
+	// apply_normal() then spin-waits on them and races the render thread. Drain them
+	// here so the decode stays on the loading screen.
+	textures_load_tasks.wait();
+	Msg("texture decode time: %d", timer.GetElapsed_ms());
 }
 
 void CResourceManager::DeferredUnload()
