@@ -188,6 +188,15 @@ void CDetailManager::hw_Render_dump(const Fvector4& consts, const Fvector4& wave
 	c_ambient.set(desc.ambient.x, desc.ambient.y, desc.ambient.z);
 	c_hemi.set(desc.hemi_color.x, desc.hemi_color.y, desc.hemi_color.z);
 
+	// GMBase is not traversed while details are drawn and pOutdoorSector is
+	// fixed for the level, so both sector verdicts are the same for every
+	// instance of this dump: resolve them once instead of taking the sector
+	// lock (and walking the sector-frustum map) per instance.
+	const bool bSectorVisible = RImplementation.GMBase.is_sector_visible(RImplementation.pOutdoorSector);
+	bool bLightSectorVisible = true;
+	if (RImplementation.phase == CRender::PHASE_SMAP && L)
+		bLightSectorVisible = L->GMLight.is_sector_visible(RImplementation.pOutdoorSector);
+
 	// Iterate
 	for (u32 O = 0; O < objects.size(); O++)
 	{
@@ -292,12 +301,12 @@ void CDetailManager::hw_Render_dump(const Fvector4& consts, const Fvector4& wave
 					{
 						SlotItem& Instance = **_iI;
 
-						if (!RImplementation.GMBase.is_sector_visible(RImplementation.pOutdoorSector))
+						if (!bSectorVisible)
 							continue;
 
 						if (RImplementation.phase == CRender::PHASE_SMAP && L)
 						{
-							if (!L->GMLight.is_sector_visible(RImplementation.pOutdoorSector))
+							if (!bLightSectorVisible)
 								continue;
 
 							if (L->position.distance_to_sqr(Instance.position) >= _sqr(L->range))
