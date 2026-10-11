@@ -479,9 +479,27 @@ void CTexture::Preload()
 	m_material = DEV->m_textures_description.GetMaterial(cName);
 }
 
+namespace
+{
+	// Frees the load claim taken at the top of CTexture::Load() on every exit path.
+	struct load_claim_guard
+	{
+		xr_atomic_bool& claimed;
+		explicit load_claim_guard(xr_atomic_bool& c) : claimed(c) {}
+		~load_claim_guard() { claimed = false; }
+	};
+}
+
 void CTexture::Load()
 {
 	PROF_EVENT("CTexture::Load");
+
+	// _CreateTexture() and apply_load() both queue this call, and PPL runs queued
+	// tasks concurrently. Without the claim two loads of the same texture pass the
+	// flags check below together and both create the D3D texture, leaking one.
+	if (load_in_flight.exchange(true))
+		return;
+	load_claim_guard load_claim(load_in_flight);
 
 	if (flags.bLoaded || flags.bLoading) return;
 	flags.bLoading = true;

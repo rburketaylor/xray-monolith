@@ -93,6 +93,11 @@ public: //	Public class members (must be encapsulated furthur)
 #endif	//	USE_DX10
 	} flags;
 
+	// Set while a queued (DX10/11) Load() body is running. Two reload tasks for the
+	// same texture can land on two worker threads at once; the claim makes the second
+	// one bail out instead of creating a second D3D texture (and leaking it).
+	xr_atomic_bool load_in_flight = false;
+
     u32 dwLastUsedFrame = 0; // frame index of last Apply() call — used for eviction
 
 	xr_delegate<void(u32)> bind;
