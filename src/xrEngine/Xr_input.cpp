@@ -193,19 +193,19 @@ void CInput::KeyUpdate()
 
 	HRESULT hr;
 	DWORD dwElements = KEYBOARDBUFFERSIZE;
-	auto od = std::make_unique<DIDEVICEOBJECTDATA[]>(KEYBOARDBUFFERSIZE);
+	DIDEVICEOBJECTDATA* od = keyBuffer;
 	DWORD key = 0;
 
 	VERIFY(pKeyboard);
 
-	hr = pKeyboard->GetDeviceData(sizeof(DIDEVICEOBJECTDATA), &od[0], &dwElements, 0);
+	hr = pKeyboard->GetDeviceData(sizeof(DIDEVICEOBJECTDATA), od, &dwElements, 0);
 	if ((hr == DIERR_INPUTLOST) || (hr == DIERR_NOTACQUIRED))
 	{
 		hr = pKeyboard->Acquire();
 		if (hr != S_OK)
 			return;
 
-		hr = pKeyboard->GetDeviceData(sizeof(DIDEVICEOBJECTDATA), &od[0], &dwElements, 0);
+		hr = pKeyboard->GetDeviceData(sizeof(DIDEVICEOBJECTDATA), od, &dwElements, 0);
 		if (hr != S_OK)
 			return;
 	}
@@ -435,16 +435,16 @@ void CInput::MouseUpdate()
 {
 	HRESULT hr;
 	DWORD dwElements = MOUSEBUFFERSIZE;
-	auto od = std::make_unique<DIDEVICEOBJECTDATA[]>(MOUSEBUFFERSIZE);
+	DIDEVICEOBJECTDATA* od = mouseBuffer;
 
 	VERIFY(pMouse);
 
-	hr = pMouse->GetDeviceData(sizeof(DIDEVICEOBJECTDATA), &od[0], &dwElements, 0);
+	hr = pMouse->GetDeviceData(sizeof(DIDEVICEOBJECTDATA), od, &dwElements, 0);
 	if ((hr == DIERR_INPUTLOST) || (hr == DIERR_NOTACQUIRED))
 	{
 		hr = pMouse->Acquire();
 		if (hr != S_OK) return;
-		hr = pMouse->GetDeviceData(sizeof(DIDEVICEOBJECTDATA), &od[0], &dwElements, 0);
+		hr = pMouse->GetDeviceData(sizeof(DIDEVICEOBJECTDATA), od, &dwElements, 0);
 		if (hr != S_OK) return;
 	};
 

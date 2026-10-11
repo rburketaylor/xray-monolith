@@ -58,6 +58,11 @@ private:
 	//----------------------
 	BOOL KBState[COUNT_KB_BUTTONS];
 
+	// per-frame DirectInput scratch buffers; sizes must match KEYBOARDBUFFERSIZE
+	// (128) and MOUSEBUFFERSIZE (1024) in Xr_input.cpp
+	DIDEVICEOBJECTDATA keyBuffer[128];
+	DIDEVICEOBJECTDATA mouseBuffer[1024];
+
 	HRESULT CreateInputDevice(LPDIRECTINPUTDEVICE8* device, GUID guidDevice,
 	                          const DIDATAFORMAT* pdidDataFormat, u32 dwFlags,
 	                          u32 buf_size);
