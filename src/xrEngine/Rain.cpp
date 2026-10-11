@@ -140,7 +140,8 @@ void CEffect_Rain::Born(Item& dest, float radius, float speed)
 
 	// Born
 	float height = max_distance;
-	RenewItem(dest, height, RayPick(dest.P, dest.D, height, collide::rqtBoth));
+	// static geometry only: drops must not pay for dynamic-object ray tests
+	RenewItem(dest, height, RayPick(dest.P, dest.D, height, collide::rqtStatic));
 }
 
 BOOL CEffect_Rain::RayPick(const Fvector& s, const Fvector& d, float& range, collide::rq_target tgt)
@@ -354,7 +355,8 @@ void CEffect_Rain::UpdateItems()
 				{
 					float dist_sqr = one.P.distance_to_sqr(src_p);
 					float height = max_distance;
-					if (RayPick(src_p, one.D, height, collide::rqtBoth))
+					// static geometry only: drops must not pay for dynamic-object ray tests
+					if (RayPick(src_p, one.D, height, collide::rqtStatic))
 					{
 						if (_sqr(height) <= dist_sqr)
 						{

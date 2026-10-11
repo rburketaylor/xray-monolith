@@ -382,9 +382,20 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 			volume_att -= 0.1f;
 		//v2v3v4 out
 
-		// Update occlusion
-		float occ = (owner_data->g_type == SOUND_TYPE_WORLD_AMBIENT) ? 1.0f : SoundRender->get_occlusion(p_source.position, .2f, occluder);
-		volume_lerp(occluder_volume, occ, 1.f, dt);
+		// Update occlusion. The randomized rays jitter the result and the
+		// smoothing moves at ~1 unit/sec, so recompute the target at ~10 Hz or
+		// when the emitter moved, instead of casting rays on every update;
+		// ambient sounds keep their rayless full-value target.
+		occluder_recompute_dt += dt;
+		if (!p_source.position.similar(occluder_pos, 0.05f) || occluder_recompute_dt >= 0.1f)
+		{
+			occluder_recompute_dt = 0.f;
+			occluder_pos.set(p_source.position);
+			occluder_target = (owner_data->g_type == SOUND_TYPE_WORLD_AMBIENT)
+				                  ? 1.0f
+				                  : SoundRender->get_occlusion(p_source.position, .2f, occluder);
+		}
+		volume_lerp(occluder_volume, occluder_target, 1.f, dt);
 		clamp(occluder_volume, 0.f, 1.f);
 	}
 	clamp(fade_volume, 0.f, 1.f);

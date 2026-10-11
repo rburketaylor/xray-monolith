@@ -49,6 +49,9 @@ public:
 	float occluder_volume; // USER
 	float fade_volume;
 	Fvector occluder [3];
+	float occluder_target; // occlusion value the smoothing approaches
+	float occluder_recompute_dt; // seconds since the last occlusion ray cast
+	Fvector occluder_pos; // emitter position at the last occlusion ray cast
 
 	State m_current_state;
 	u32 m_stream_cursor;
