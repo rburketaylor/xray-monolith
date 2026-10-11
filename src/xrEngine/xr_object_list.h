@@ -21,6 +21,7 @@ private:
 	Objects objects_active;
 	Objects objects_sleeping;
 	Objects m_crows[2];
+	Objects m_workload; // reused by Update() so the per-frame snapshot does not allocate
 	u32 m_owner_thread_id;
 
 public:

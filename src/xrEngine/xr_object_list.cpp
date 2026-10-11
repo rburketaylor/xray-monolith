@@ -211,7 +211,8 @@ void CObjectList::Update(bool bForce)
 		{
 			// Select Crow-Mode
 			Device.Statistic->UpdateClient_updated = 0;
-			Objects workload;
+			Objects& workload = m_workload;
+			workload.clear_not_free();
 			workload.reserve(objects_active.capacity());
 
 			{
