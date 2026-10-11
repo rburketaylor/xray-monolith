@@ -29,7 +29,8 @@ IGame_Level::IGame_Level()
 	bReady = false;
 	pCurrentEntity = NULL;
 	pCurrentViewEntity = NULL;
-	Device.DumpResourcesMemoryUsage();
+	// perf: one Msg per registered texture on every level load (~1-6k lines each).
+	// Use the "stat_textures" console command when the full list is needed.
 }
 
 //#include "resourcemanager.h"
@@ -53,7 +54,7 @@ IGame_Level::~IGame_Level()
 	///////////////////////////////////////////
 	Sound->set_geometry_occ(NULL);
 	Sound->set_handler(NULL);
-	Device.DumpResourcesMemoryUsage();
+	// perf: same dump as in the ctor; keep it off the level-unload path.
 
 	u32 m_base = 0, c_base = 0, m_lmaps = 0, c_lmaps = 0;
 	if (Device.m_pRender)
