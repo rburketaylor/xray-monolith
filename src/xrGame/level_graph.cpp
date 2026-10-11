@@ -268,7 +268,16 @@ u32 CLevelGraph::vertex_id(const Fvector& position) const
 
 	if (!valid_vertex_position(position))
 	{
-		Msg("{@} --- Invalid position for CLevelGraph::vertex_id specified: [%f][%f][%f]", VPUSH(position));
+		// Callers may use rejection sampling with this function (retry until the result
+		// is not u32(-1)), so a single spawn attempt can call it dozens of times.
+		// Keep the first few hits for diagnostics, then stop flooding the log.
+		// Main-thread only (scripts, AI, level loading); the counter is log-only.
+		static u32 invalid_position_count = 0;
+		u32 const count = ++invalid_position_count;
+		if (count <= 16)
+			Msg("{@} --- Invalid position for CLevelGraph::vertex_id specified: [%f][%f][%f]", VPUSH(position));
+		else if (count == 17)
+			Msg("{@} --- further invalid CLevelGraph::vertex_id positions are suppressed");
 		return (u32(-1));
 	}
 
