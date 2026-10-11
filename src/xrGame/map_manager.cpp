@@ -317,7 +317,11 @@ void CMapManager::Update()
 		if ((*it).actual && bForce)
 			(*it).location->CalcPosition();
 	}
-	std::sort(Locations().begin(), Locations().end());
+	// the comparator is a total order (unique location pointers), so an
+	// already-sorted list is left untouched by std::sort; skip the scan+sort
+	// when nothing moved this frame
+	if (!std::is_sorted(Locations().begin(), Locations().end()))
+		std::sort(Locations().begin(), Locations().end());
 
 	while ((!Locations().empty()) && (!Locations().back().actual))
 	{
