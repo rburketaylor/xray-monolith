@@ -177,7 +177,10 @@ void CDSGraphManager::r_dsgraph_render_graph(RenderQueueArray& queues, u32 _prio
             {
                 pTextures = packet.pTextures;
                 RCache.set_Textures(pTextures);
-                RImplementation.apply_lmaterial();
+                // dynamic items re-run apply_lmaterial after apply_object below;
+                // static geometry relies on this call alone
+                if (static_geometry)
+                    RImplementation.apply_lmaterial();
             }
 
 			auto& item = packet.item;
@@ -355,22 +358,35 @@ void CDSGraphManager::r_dsgraph_render_water_ssr()
 #ifdef USE_DX11
 	PROF_EVENT("r_dsgraph_render_water_ssr");
 	std::sort(RGraph.mapWater.begin(), RGraph.mapWater.end());
+	// resolve the per-draw constants once per pass instead of by name on every
+	// surface (the pass uses a single fixed shader)
+	R_constant* c_cam_pos = nullptr;
+	R_constant* c_m_current = nullptr;
+	R_constant* c_m_previous = nullptr;
+	bool constants_resolved = false;
 	for (auto& N : RGraph.mapWater)
 	{
 		dxRender_Visual* V = N.pVisual;
 		VERIFY(V);
 
 		RCache.set_Shader(RImplementation.Target->s_ssfx_water_ssr);
+		if (!constants_resolved)
+		{
+			constants_resolved = true;
+			c_cam_pos = RCache.get_c("cam_pos");
+			c_m_current = RCache.get_c("m_current");
+			c_m_previous = RCache.get_c("m_previous");
+		}
 
 		RCache.set_xform_world(*N.pMatrix);
 		RImplementation.apply_object(N.pObject);
 		RImplementation.apply_lmaterial();
 
-		RCache.set_c("cam_pos", RImplementation.Target->Position_previous.x, RImplementation.Target->Position_previous.y, RImplementation.Target->Position_previous.z, 0.0f);
+		RCache.set_c(c_cam_pos, RImplementation.Target->Position_previous.x, RImplementation.Target->Position_previous.y, RImplementation.Target->Position_previous.z, 0.0f);
 
 		// Previous matrix data
-		RCache.set_c("m_current", RImplementation.Target->Matrix_current);
-		RCache.set_c("m_previous", RImplementation.Target->Matrix_previous);
+		RCache.set_c(c_m_current, RImplementation.Target->Matrix_current);
+		RCache.set_c(c_m_previous, RImplementation.Target->Matrix_previous);
 
 		V->Render(calcLOD(N.ssa, V->vis.sphere.R));
 	}
@@ -381,15 +397,30 @@ void CDSGraphManager::r_dsgraph_render_water()
 {
 	PROF_EVENT("r_dsgraph_render_water_ssr");
     std::sort(RGraph.mapWater.begin(), RGraph.mapWater.end());
+	// with the fixed ssfx water shader, resolve the per-draw wind constant once
+	// per pass instead of by name on every surface; otherwise each surface keeps
+	// its own shader and the constant is looked up by name as before
+	R_constant* c_wind_setup = nullptr;
+#ifdef USE_DX11
+	const bool fixed_shader = RImplementation.o.ssfx_water;
+	bool constants_resolved = false;
+#else
+	const bool fixed_shader = false;
+#endif
     for (auto& N : RGraph.mapWater)
 	{
 		dxRender_Visual* V = N.pVisual;
 		VERIFY(V);
 
 #ifdef USE_DX11
-		if (RImplementation.o.ssfx_water)
+		if (fixed_shader)
 		{
 			RCache.set_Shader(RImplementation.Target->s_ssfx_water);
+			if (!constants_resolved)
+			{
+				constants_resolved = true;
+				c_wind_setup = RCache.get_c("wind_setup");
+			}
 		}
 #endif
 
@@ -400,7 +431,10 @@ void CDSGraphManager::r_dsgraph_render_water()
 		// Wind settings
 		float WindDir = g_pGamePersistent->Environment().CurrentEnv->wind_direction;
 		float WindVel = g_pGamePersistent->Environment().CurrentEnv->wind_velocity;
-		RCache.set_c("wind_setup", WindDir, WindVel, 0, 0);
+		if (fixed_shader)
+			RCache.set_c(c_wind_setup, WindDir, WindVel, 0, 0);
+		else
+			RCache.set_c("wind_setup", WindDir, WindVel, 0, 0);
 
 		V->Render(calcLOD(N.ssa, V->vis.sphere.R));
 	}
