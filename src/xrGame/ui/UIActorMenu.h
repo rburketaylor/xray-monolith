@@ -179,6 +179,7 @@ protected:
 	bool m_repair_mode;
 	bool m_item_info_view;
 	bool m_highlight_clear;
+	bool m_refresh_pending;
 	u32 m_trade_partner_inventory_state;
 public:
 	CUIDragDropReferenceList* m_pQuickSlot;

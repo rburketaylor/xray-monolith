@@ -122,7 +122,7 @@ void CInventory::Clear()
 
 	m_pOwner = NULL;
 
-	CalcTotalWeight();
+	m_fTotalWeight = -1.f;
 	InvalidateState();
 }
 
@@ -209,7 +209,7 @@ void CInventory::Take(CGameObject* pObj, bool bNotActivate, bool strict_placemen
 
 	m_pOwner->OnItemTake(pIItem);
 
-	CalcTotalWeight();
+	m_fTotalWeight = -1.f;
 	InvalidateState();
 
 	pIItem->object().processing_deactivate();
@@ -315,7 +315,7 @@ bool CInventory::DropItem(CGameObject* pObj, bool just_before_destroy, bool dont
 
 	m_pOwner->OnItemDrop(smart_cast<CInventoryItem*>(pObj), just_before_destroy);
 
-	CalcTotalWeight();
+	m_fTotalWeight = -1.f;
 	InvalidateState();
 	m_drop_last_frame = true;
 
@@ -468,7 +468,7 @@ bool CInventory::Belt(PIItem pIItem, bool strict_placement)
 			m_ruck.erase(it);
 	}
 
-	CalcTotalWeight();
+	m_fTotalWeight = -1.f;
 	InvalidateState();
 
 	SInvItemPlace p = pIItem->m_ItemCurrPlace;
@@ -532,7 +532,7 @@ bool CInventory::Ruck(PIItem pIItem, bool strict_placement)
 
 	m_ruck.insert(m_ruck.end(), pIItem);
 
-	CalcTotalWeight();
+	m_fTotalWeight = -1.f;
 	InvalidateState();
 
 	m_pOwner->OnItemRuck(pIItem, pIItem->m_ItemCurrPlace);
@@ -1031,6 +1031,15 @@ PIItem CInventory::item(CLASS_ID cls_id) const
 
 float CInventory::TotalWeight() const
 {
+	// recompute lazily: events only invalidate, reads are rare compared to
+	// the Take/Drop storms a bulk transfer produces
+	if (m_fTotalWeight < 0.f)
+	{
+		float weight = 0;
+		for (TIItemContainer::const_iterator it = m_all.begin(); m_all.end() != it; ++it)
+			weight += (*it)->Weight();
+		m_fTotalWeight = weight;
+	}
 	VERIFY(m_fTotalWeight>=0.f);
 	return m_fTotalWeight;
 }

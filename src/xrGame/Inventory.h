@@ -175,7 +175,7 @@ protected:
 	// максимальный вес инвентаря
 	float m_fMaxWeight;
 	// текущий вес в инвентаре
-	float m_fTotalWeight;
+	mutable float m_fTotalWeight; // -1 = dirty, recomputed lazily by TotalWeight()
 
 	//кадр на котором произошло последнее изменение в инвенторе
 	u32 m_dwModifyFrame;

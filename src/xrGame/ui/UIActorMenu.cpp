@@ -207,6 +207,15 @@ void CUIActorMenu::Draw()
 
 void CUIActorMenu::Update()
 {
+	if (m_refresh_pending)
+	{
+		m_refresh_pending = false;
+		if (m_pActorInvOwner)
+			m_pQuickSlot->ReloadReferences(m_pActorInvOwner);
+		UpdateItemsPlace();
+		UpdateConditionProgressBars();
+	}
+
 	{
 		// all mode
 		m_last_time = Device.dwTimeGlobal;

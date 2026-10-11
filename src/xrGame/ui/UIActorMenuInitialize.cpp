@@ -28,6 +28,7 @@ CUIActorMenu::CUIActorMenu()
 {
 	m_currMenuMode = mmUndefined;
 	m_trade_partner_inventory_state = 0;
+	m_refresh_pending = false;
 	Construct();
 }
 

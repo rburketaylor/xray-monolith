@@ -344,7 +344,7 @@ void CUIActorMenu::OnInventoryAction(PIItem pItem, u16 action_type)
 				}
 			}
 			if (m_pActorInvOwner)
-				m_pQuickSlot->ReloadReferences(m_pActorInvOwner);
+				m_refresh_pending = true;
 		}
 		break;
 	case GE_TRADE_SELL:
@@ -386,12 +386,13 @@ void CUIActorMenu::OnInventoryAction(PIItem pItem, u16 action_type)
 				}
 			}
 			if (m_pActorInvOwner)
-				m_pQuickSlot->ReloadReferences(m_pActorInvOwner);
+				m_refresh_pending = true;
 		}
 		break;
 	}
-	UpdateItemsPlace();
-	UpdateConditionProgressBars();
+	// bulk transfers deliver hundreds of events in one ProcessGameEvents batch;
+	// run the heavy refreshes once per frame instead of once per event
+	m_refresh_pending = true;
 }
 
 void CUIActorMenu::AttachAddon(PIItem item_to_upgrade)
