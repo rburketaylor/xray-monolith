@@ -23,6 +23,7 @@ CUIZoneMap::CUIZoneMap()
 	  visible(true)
 {
 	disabled = false;
+	m_clock_last_minutes = u64(-1);
 }
 
 CUIZoneMap::~CUIZoneMap()
@@ -175,8 +176,15 @@ void CUIZoneMap::Update()
 	Device.vCameraDirection.getHP(h, p);
 	SetHeading(-h);
 
-	m_clock_wnd->TextItemControl()->SetText(
-		InventoryUtilities::GetGameTimeAsString(InventoryUtilities::etpTimeToMinutes).c_str());
+	// The clock displays minutes only: rebuilding the text interns a shared
+	// string every frame. Do it when the displayed game minute changes.
+	const u64 clock_minutes = Level().GetGameTime() / 60000;
+	if (clock_minutes != m_clock_last_minutes)
+	{
+		m_clock_last_minutes = clock_minutes;
+		m_clock_wnd->TextItemControl()->SetText(
+			InventoryUtilities::GetGameTimeAsString(InventoryUtilities::etpTimeToMinutes).c_str());
+	}
 }
 
 void CUIZoneMap::SetHeading(float angle)

@@ -24,6 +24,7 @@ private:
 	CUIStatic m_Counter;
 	CUITextWnd m_Counter_text;
 	u8 m_current_map_idx;
+	u64 m_clock_last_minutes; // last displayed game minute; the clock only shows minutes
 
 public:
 	CUIZoneMap();
