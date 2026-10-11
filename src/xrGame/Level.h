@@ -8,6 +8,7 @@
 #include "xrEngine/StatGraph.h"
 #include "xrMessages.h"
 #include "alife_space.h"
+#include "xrCore/_thread_types.h"
 #include "xrCore/xrDebug.h"
 #include "xrServer.h"
 #include "GlobalFeelTouch.hpp"
@@ -261,12 +262,14 @@ public:
 	prefetch_event_queue* prefetch_events = nullptr;
 	models_set* prefetched_models = nullptr;
 	xrSRWLock prefetch_lock;
+	HANDLE prefetch_thread = nullptr;			// joinable handle from thread_spawn_ex, joined in ~CLevel
+	HANDLE prefetch_thread_signal = nullptr;	// per-level wake/stop event (was a file-static in Level.cpp)
     bool PostponedSpawn(u16 id);
 	void ProcessSpawnEvents();
 	static void ProcessPrefetchEvents(void* args);
 	void SortSpawnEventsQueue();
 private:
-	bool closeSignal = false;
+	xr_atomic_bool closeSignal = false;
 	int GetSpawnEventPriority(const NET_Event& e) const;
 	bool PostponedSpawnFind(u16 id, const NET_Event& E) const;
 	bool PostponedSpawnFind(u16 id, NET_Packet& P) const;
