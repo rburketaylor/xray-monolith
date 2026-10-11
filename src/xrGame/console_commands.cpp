@@ -3355,7 +3355,7 @@ void CCC_RegisterCommands()
 	CMD3(CCC_DiscordStatus, "discord_status", &psDeviceFlags2, rsDiscord);
 	CMD4(CCC_Float, "discord_update_rate", &discord_update_rate, .5f, 5.f);
 
-	psActorFlags.set(rsCODPickup, TRUE);
+	psDeviceFlags2.set(rsCODPickup, TRUE);
 	CMD3(CCC_Mask, "cl_cod_pickup_mode", &psDeviceFlags2, rsCODPickup);
 	psActorFlags.set(AF_MULTI_ITEM_PICKUP, TRUE);
 	CMD3(CCC_Mask, "g_multi_item_pickup", &psActorFlags, AF_MULTI_ITEM_PICKUP);
