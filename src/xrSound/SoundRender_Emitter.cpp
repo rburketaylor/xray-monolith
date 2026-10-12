@@ -66,14 +66,23 @@ void CSoundRender_Emitter::Event_ReleaseOwner()
 	PROF_EVENT("CSoundRender_Emitter::Event_ReleaseOwner");
 	if (!(owner_data)) return;
 
-	for (u32 it = 0; it < SoundRender->s_events.size(); it++)
+	// Compact s_events in place instead of erasing every matching event from
+	// the middle (an O(N) shift per match). update_events dispatches in
+	// vector order, so survivors keep their relative order - the same set
+	// and sequence one-by-one erase would leave behind.
+	auto& events = SoundRender->s_events;
+	u32 dst = 0;
+	for (u32 it = 0; it < events.size(); it++)
 	{
-		if (owner_data == SoundRender->s_events[it].first)
+		if (events[it].first != owner_data)
 		{
-			SoundRender->s_events.erase(SoundRender->s_events.begin() + it);
-			it --;
+			if (dst != it)
+				events[dst] = events[it];
+			dst++;
 		}
 	}
+	if (dst != events.size())
+		events.resize(dst);
 }
 
 void CSoundRender_Emitter::Event_Propagade()
