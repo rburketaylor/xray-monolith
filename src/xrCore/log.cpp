@@ -167,9 +167,9 @@ void xrLogger::PauseLogging()
 
 void xrLogger::UnpauseLogging()
 {
-    if (bImmediateMode)
+    if (bImmediateMode && bIsAlive)
         InternalPrintAllRecords();
-    else
+    else if (hLogThread != nullptr)
 	    SetEvent(hLogThread);
 }
 
@@ -240,7 +240,7 @@ void xrLogger::InitLog()
 	{
 		theLogger = new xrLogger;
 		xrLogger::logData = new xr_queue <xrLogger::LogRecord>;
-		thread_spawn(LogThreadEntryStartup, "X-Ray Log Thread", 0, nullptr);
+		theLogger->m_hLogThread = thread_spawn_ex(LogThreadEntryStartup, "X-Ray Log Thread", 0, nullptr);
 	}	
 }
 
@@ -292,25 +292,53 @@ void xrLogger::RemoveLogCallback(LogCallback logCb)
 void xrLogger::InternalCloseLog()
 {
 	SimpleMessage("[xrLogger] InternalCloseLog called, terminating thread");
-	bIsAlive = false;
 
-	InternalPrintAllRecords();
-	InternalFlushLog();
+	{
+		xrCriticalSectionGuard guard(&logDataGuard);
+		bIsAlive = false;
+	}
 
-	IWriter* tempCopy = (IWriter*)logFile;
-	logFile = nullptr;
-
-	if (tempCopy != nullptr)
-		FS.w_close(tempCopy);
-
+	// Wake the log thread so it observes bIsAlive and returns; the thread no
+	// longer closes the event or touches the writer, this function owns both.
 	UnpauseLogging();
+
+	if (m_hLogThread != nullptr)
+	{
+		WaitForSingleObject(m_hLogThread, 3000);
+		CloseHandle(m_hLogThread);
+		m_hLogThread = nullptr;
+	}
+
+	// The log thread has returned by now, so draining and closing the writer
+	// here cannot race with it.
+	InternalPrintAllRecords();
+	{
+		xrCriticalSectionGuard guard(&logFlushGuard);
+		InternalFlushLog();
+
+		IWriter* tempCopy = (IWriter*)logFile;
+		logFile = nullptr;
+
+		if (tempCopy != nullptr)
+			FS.w_close(tempCopy);
+	}
+
+	if (hLogThread != nullptr)
+	{
+		// Clear the member before closing so UnpauseLogging() from other
+		// threads cannot pick up the handle while it is being closed.
+		HANDLE hEvent = hLogThread;
+		hLogThread = nullptr;
+		CloseHandle(hEvent);
+	}
 }
 
 xrLogger::xrLogger()
 	: logFile(nullptr), bFastDebugLog(false), 
 	bIsAlive(true),
 	bFlushRequested(false),
-	bImmediateMode(false)
+	bImmediateMode(false),
+	m_hLogThread(nullptr)
 {
 	hLogThread = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 }
@@ -378,27 +406,35 @@ void xrLogger::InternalPrintRecord()
 		}
 
 		// demonized: add tempLogData in case the logFile initialization takes time
-		if (logFile != nullptr)
 		{
-			IWriter* mutableWritter = (IWriter*)logFile;
-
-			while (!tempLogData.empty())
+			// Only one thread at a time may be in this block: FlushLog() callers
+			// and, in immediate mode, other drainers share logFile and
+			// tempLogData with us. InternalFlushLog() below re-enters
+			// logFlushGuard on this very thread, which is fine because
+			// CRITICAL_SECTION is recursive.
+			xrCriticalSectionGuard writerGuard(&logFlushGuard);
+			if (logFile != nullptr)
 			{
-				auto line = tempLogData.front();
-				tempLogData.pop();
-				mutableWritter->w(line.c_str(), line.size());
-				mutableWritter->w("\r\n", 2);
-			}
+				IWriter* mutableWritter = (IWriter*)logFile;
 
-			// write to file
-			mutableWritter->w(finalLine, FinalSize);
-			mutableWritter->w("\r\n", 2);
-			if (bImmediateMode)
-                InternalFlushLog();
-		}
-		else
-		{
-			tempLogData.push(finalLine);
+				while (!tempLogData.empty())
+				{
+					auto line = tempLogData.front();
+					tempLogData.pop();
+					mutableWritter->w(line.c_str(), line.size());
+					mutableWritter->w("\r\n", 2);
+				}
+
+				// write to file
+				mutableWritter->w(finalLine, FinalSize);
+				mutableWritter->w("\r\n", 2);
+				if (bImmediateMode)
+					InternalFlushLog();
+			}
+			else
+			{
+				tempLogData.push(finalLine);
+			}
 		}
 
 		xrCriticalSectionGuard guard(&logCallbackGuard);
@@ -437,7 +473,9 @@ void xrLogger::LogThreadEntry()
 	{
 		if (!bIsAlive)
 		{
-			CloseHandle(hLogThread);
+			// Drain what is left once and exit; InternalCloseLog() joins this
+			// thread and only then closes the event and the writer.
+			InternalPrintAllRecords();
 			return;
 		}
 		

@@ -48,6 +48,7 @@ private:
 	void InternalCloseLog();
 	volatile bool bIsAlive;
 	ThreadID hLogThread;
+	ThreadID m_hLogThread;
 
 	void InternalOpenLogFile();
 
