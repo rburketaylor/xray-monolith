@@ -8,7 +8,8 @@ class dx10SamplerStateCache
 public:
 	enum
 	{
-		hInvalidHandle = 0xFFFFFFFF
+		hInvalidHandle = 0xFFFFFFFF,
+		hUnknownHandle = 0xFFFFFFFE	//	device binding is unknown (see ResetDeviceState)
 	};
 
 	//	State handle
@@ -52,7 +53,9 @@ private:
 	void CreateState(StateDecs desc, IDeviceState** ppIState);
 	SHandle FindState(const StateDecs& desc, u32 StateCRC);
 
-	void PrepareSamplerStates(
+	//	Resolves the changed slots only. Returns false when the device samplers
+	//	already match the state, in which case uiMin/uiMax are undefined.
+	bool PrepareSamplerStates(
 		HArray& samplers,
 		ID3DSamplerState* pSS[D3D_COMMONSHADER_SAMPLER_SLOT_COUNT],
 		SHandle pCurrentState[D3D_COMMONSHADER_SAMPLER_SLOT_COUNT],
