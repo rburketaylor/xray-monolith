@@ -35,7 +35,7 @@ protected:
 	Ivector2 m_visible_rgn;
 
 	virtual void RecalcSize();
-	void UpdateScroll();
+	void UpdateScroll(bool pad_drag_sync = false);
 	void __stdcall OnScrollV(CUIWindow*, void*);
 	void SetRightIndention(float val);
 	void SetLeftIndention(float val);

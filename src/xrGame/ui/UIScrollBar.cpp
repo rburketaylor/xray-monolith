@@ -341,7 +341,10 @@ void CUIScrollBar::SetScrollPosClamped(int iPos)
 {
 	int old_pos = m_iScrollPos;
 	m_iScrollPos = iPos;
-	clamp(m_iScrollPos, m_iMinPos, m_iMaxPos - m_iPageSize + 1);
+	// Floor the upper bound at the minimum: while a relayout transiently
+	// collapses the range below the page size, max-page+1 goes negative and
+	// the clamp would write garbage positions (observed: 68 -> -423).
+	clamp(m_iScrollPos, m_iMinPos, _max(m_iMinPos, m_iMaxPos - m_iPageSize + 1));
 	if (old_pos != m_iScrollPos)
 		Msg("[invbar] SetScrollPosClamped %d -> %d (req %d, min %d, max %d, page %d)",
 			old_pos, m_iScrollPos, iPos, m_iMinPos, m_iMaxPos, m_iPageSize);

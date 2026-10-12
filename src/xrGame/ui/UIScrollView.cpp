@@ -190,15 +190,42 @@ void CUIScrollView::RecalcSize()
 	m_visible_rgn.set(-1, -1);
 }
 
-void CUIScrollView::UpdateScroll()
+void CUIScrollView::UpdateScroll(bool pad_drag_sync)
 {
 	Fvector2 w_pos = m_pad->GetWndPos();
 	m_VScrollBar->SetHeight(GetHeight());
 	int range_max = iFloor(m_pad->GetHeight() * Scroll2ViewV());
-	Msg("[invbar] UpdateScroll pad_y %.0f -> pos %d (pad_h %.0f, range 0..%d)", w_pos.y, iFloor(-w_pos.y), m_pad->GetHeight(), range_max);
-	m_VScrollBar->SetRange(0, range_max);
 
-	m_VScrollBar->SetScrollPos(iFloor(-w_pos.y));
+	if (pad_drag_sync)
+	{
+		// The user is dragging the pad itself (OnMouseAction): the pad offset
+		// is the live input, so sync the bar from it. This is the only path
+		// where the pad may legitimately move the bar.
+		m_VScrollBar->SetRange(0, range_max);
+		m_VScrollBar->SetScrollPos(iFloor(-w_pos.y));
+		return;
+	}
+
+	// Layout path (RecalcSize & friends). The bar position is the user's
+	// scroll intent and the single source of truth here. Script-driven
+	// inventory refreshes Clear() and re-Add() every item; while that storm
+	// runs the pad is re-attached at the origin and its height is
+	// transiently smaller than the view, so the old code re-derived the
+	// position from the transient pad offset (y = 0..16) and clamped it
+	// against the collapsed range - silently resetting the bar to 0 and
+	// jumping the list mid-scroll. Never let a relayout reduce the position:
+	// while the current position exceeds what the (transient) extent allows,
+	// keep bar, range and pad exactly as they are; the settled layout pass
+	// falls through and re-applies them normally.
+	int pos = m_VScrollBar->GetScrollPos();
+	int bound = _max(0, range_max - m_VScrollBar->GetPageSize() + 1);
+	Msg("[invbar] UpdateScroll pos %d bound %d (pad_h %.0f, range 0..%d) -> %s",
+		pos, bound, m_pad->GetHeight(), range_max, (pos > bound) ? "HOLD" : "apply");
+	if (pos > bound)
+		return;
+
+	m_VScrollBar->SetRange(0, range_max);
+	m_VScrollBar->SetScrollPos(pos);
 }
 
 float CUIScrollView::Scroll2ViewV()
@@ -302,7 +329,7 @@ bool CUIScrollView::OnMouseAction(float x, float y, EUIMessages mouse_action)
 			max_pos = _max(0.0f, max_pos);
 			clamp(curr_pad_pos.y, -max_pos, 0.0f);
 			m_pad->SetWndPos(curr_pad_pos);
-			UpdateScroll();
+			UpdateScroll(true);
 			res = true;
 		}
 		break;
