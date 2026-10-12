@@ -11,6 +11,9 @@ class CGameTaskManager
 {
 	CGameTaskWrapper* m_gametasks_wrapper;
 	vGameTasks* m_gametasks;
+	// scratch snapshot of the task list, reused by UpdateTasks() so it does not
+	// have to copy the vector onto the stack (or alloca a buffer) every frame
+	xr_vector<SGameTaskKey> m_tasks_scratch;
 
 	enum { eChanged = (1 << 0), };
 

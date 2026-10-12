@@ -170,16 +170,12 @@ void CGameTaskManager::UpdateTasks()
 	if (0 == task_count) return;
 
 	{
-		typedef buffer_vector<SGameTaskKey> Tasks;
-		Tasks tasks(
-			_alloca(task_count * sizeof(SGameTaskKey)),
-			task_count,
-			GetGameTasks().begin(),
-			GetGameTasks().end()
-		);
+		// keep a snapshot: SetTaskState() below can mutate the live list
+		// (the member scratch keeps its capacity across frames)
+		m_tasks_scratch.assign(GetGameTasks().begin(), GetGameTasks().end());
 
-		Tasks::const_iterator I = tasks.begin();
-		Tasks::const_iterator E = tasks.end();
+		vGameTasks::const_iterator I = m_tasks_scratch.begin();
+		vGameTasks::const_iterator E = m_tasks_scratch.end();
 		for (; I != E; ++I)
 		{
 			CGameTask* const t = (*I).game_task;
