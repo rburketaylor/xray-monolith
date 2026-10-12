@@ -77,7 +77,7 @@ const u32 g_clWhite = 0xffffffff;
 #define				MAININGAME_XML				"maingame.xml"
 
 CUIMainIngameWnd::CUIMainIngameWnd()
-	:/*m_pGrenade(NULL),m_pItem(NULL),*/m_pPickUpItem(NULL), m_pMPChatWnd(NULL), UIArtefactIcon(NULL), m_pMPLogWnd(NULL)
+	:/*m_pGrenade(NULL),m_pItem(NULL),*/m_pPickUpItem(NULL), m_pLastPickUpItem(NULL), m_pMPChatWnd(NULL), UIArtefactIcon(NULL), m_pMPLogWnd(NULL)
 {
 	UIZoneMap = xr_new<CUIZoneMap>();
 }
@@ -581,11 +581,21 @@ void CUIMainIngameWnd::UpdatePickUpItem()
 	if (!m_pPickUpItem || !Level().CurrentViewEntity() || !smart_cast<CActor*>(Level().CurrentViewEntity()))
 	{
 		UIPickUpItemIcon->Show(false);
+		m_pLastPickUpItem = NULL; // force a full refresh when an item is seen again
+		m_lastPickUpSect = NULL;
 		return;
 	};
 
 
 	shared_str sect_name = m_pPickUpItem->object().cNameSect();
+
+	// The shader, rect, size and position below are pure functions of the item
+	// and its section, so only redo that work when the looked-at item changes.
+	if (m_pPickUpItem == m_pLastPickUpItem && sect_name == m_lastPickUpSect)
+		return;
+
+	m_pLastPickUpItem = m_pPickUpItem;
+	m_lastPickUpSect = sect_name;
 
 	//properties used by inventory menu
 	const Irect grid_rect = m_pPickUpItem->GetInvGridRect();

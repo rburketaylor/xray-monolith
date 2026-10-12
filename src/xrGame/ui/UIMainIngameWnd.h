@@ -142,6 +142,8 @@ public:
 
 protected:
 	CInventoryItem* m_pPickUpItem;
+	CInventoryItem* m_pLastPickUpItem; // item whose icon is currently applied
+	shared_str m_lastPickUpSect;      // its section at the time
 	CUIStatic* UIPickUpItemIcon;
 
 	float m_iPickUpItemIconX;
