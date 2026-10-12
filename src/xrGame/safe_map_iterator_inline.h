@@ -26,6 +26,7 @@ IC CSSafeMapIterator::CSafeMapIterator()
 	m_cycle_count = 0;
 	m_first_update = use_first_update;
 	m_max_process_time = 0.f;
+	m_max_process_time_ticks = 0;
 	update_next();
 }
 
@@ -103,13 +104,14 @@ IC void CSSafeMapIterator::start_timer()
 TEMPLATE_SPEZIALIZATION
 IC bool CSSafeMapIterator::time_over()
 {
-	return (use_time_limit && !m_first_update && (m_timer.GetElapsed_sec() >= m_max_process_time));
+	return (use_time_limit && !m_first_update && (m_timer.GetElapsed_ticks() >= m_max_process_time_ticks));
 }
 
 TEMPLATE_SPEZIALIZATION
 IC void CSSafeMapIterator::set_process_time(const float& process_time)
 {
 	m_max_process_time = process_time;
+	m_max_process_time_ticks = (process_time > 0.f) ? u64(process_time * float(CPU::qpc_freq)) : 0;
 }
 
 TEMPLATE_SPEZIALIZATION

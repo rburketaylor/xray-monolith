@@ -144,9 +144,10 @@ void CALifeUpdateManager::shedule_Update(u32 dt)
 
 void CALifeUpdateManager::set_process_time(int microseconds)
 {
-	// Consumer (CSSafeMapIterator::time_over) compares against GetElapsed_sec(),
-	// so the budget must be stored in seconds. Previously the raw microsecond
-	// count was stored, making the time limit effectively never fire.
+	// Consumer (CSSafeMapIterator::set_process_time) converts the seconds
+	// budget into QPC ticks for the comparison, so the budget must be stored
+	// in seconds. Previously the raw microsecond count was stored, making the
+	// time limit effectively never fire.
 	const float sec = float(microseconds) / 1000000.f;
 	graph().set_process_time(sec - sec * update_monster_factor());
 }

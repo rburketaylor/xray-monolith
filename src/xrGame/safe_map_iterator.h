@@ -27,8 +27,12 @@ protected:
 	_REGISTRY m_objects;
 	_cycle_type m_cycle_count;
 	_iterator m_next_iterator;
-	CTimer m_timer;
+	// CTimerBase and not CTimer: only the elapsed tick count is compared, and
+	// CTimer::GetElapsed_ticks switches FPU modes twice for its time factor,
+	// which this registry never uses
+	CTimerBase m_timer;
 	float m_max_process_time;
+	u64 m_max_process_time_ticks;
 	bool m_first_update;
 
 protected:
