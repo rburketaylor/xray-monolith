@@ -504,11 +504,16 @@ void CSoundRender_Core::update_listener(const Fvector& P, const Fvector& D, cons
 
 void CSoundRender_Core::object_relcase(CObject* obj)
 {
-	if (obj) {
-		for (u32 eit = 0; eit < s_emitters.size(); eit++) {
-			if (s_emitters[eit] && s_emitters[eit]->owner_data && (obj == s_emitters[eit]->owner_data->g_object))
-				s_emitters[eit]->owner_data->g_object = nullptr;
-		}
+	if (!obj || s_emitters.empty()) return;
+
+	// Reverse index deliberately not kept: g_object is assigned from several
+	// paths (play/play_at_pos/play_no_feedback, sound_player, IGame_Level),
+	// so the bookkeeping would cost more than scanning this common-empty
+	// array.
+	for (CSoundRender_Emitter* const& E : s_emitters)
+	{
+		if (E && E->owner_data && (obj == E->owner_data->g_object))
+			E->owner_data->g_object = nullptr;
 	}
 }
 
