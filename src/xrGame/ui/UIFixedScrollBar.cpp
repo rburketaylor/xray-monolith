@@ -312,6 +312,10 @@ void CUIFixedScrollBar::SetPosScrollFromView(float view_pos, float view_size, fl
 	int scroll_size = ScrollSize();
 	float pos = view_pos - view_offs;
 	float work_size = m_ScrollWorkArea - view_size;
+	int old_pos = m_iScrollPos;
+	int new_pos = work_size > 0.f ? iFloor(((pos / work_size) * (scroll_size) + m_iMinPos)) : old_pos;
+	Msg("[invbar] SetPosScrollFromView view_pos %.0f view_size %.0f work_size %.0f scroll_size %d pos %d -> %d",
+		view_pos, view_size, work_size, scroll_size, old_pos, new_pos);
 	if (work_size <= 0.f)
 	{
 		// A collapsed work area has no meaningful scrollbox->position mapping.
@@ -319,10 +323,10 @@ void CUIFixedScrollBar::SetPosScrollFromView(float view_pos, float view_size, fl
 		// out (e.g. during the inventory refresh transient). The old code
 		// wrote m_iScrollPos = 0 here directly - past the setter, past the
 		// clamps - silently destroying a restored scroll position.
-		Msg("[invbar] SetPosScrollFromView bail (work_size %.0f, view %.0f, work_area %d, pos %d)", work_size, view_size, m_ScrollWorkArea, m_iScrollPos);
+		Msg("[invbar] SetPosScrollFromView bail (work_size %.1f)", work_size);
 		return;
 	}
-	m_iScrollPos = iFloor(((pos / work_size) * (scroll_size) + m_iMinPos));
+	m_iScrollPos = new_pos;
 	clamp(m_iScrollPos, m_iMinPos, m_iMaxPos - m_iPageSize + 1);
 	UpdateScrollBar();
 }
