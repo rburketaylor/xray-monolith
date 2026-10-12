@@ -10,6 +10,7 @@ class CComplexMapSpot;
 class CUICustomMap;
 class CInventoryOwner;
 class CUIXml;
+class CGameTask;
 
 CUIXml* GetSpotXml();
 
@@ -83,6 +84,12 @@ protected :
 	void CalcLevelName();
 	CMapSpotPointer* GetSpotPointer(CMapSpot* sp);
 	CMapSpot* GetSpotBorder(CMapSpot* sp);
+	//	HasGameTask(this, only_inprocess=true), cached for the current
+	//	CGameTaskManager generation (bumped on any task change) - the linear
+	//	scan over all tasks used to run per spot per frame on open maps
+	CGameTask* task_in_progress();
+	u32 m_task_lookup_gen;
+	CGameTask* m_task_lookup_ptr;
 public:
 	CMapLocation(LPCSTR type, u16 object_id);
 	virtual ~CMapLocation();

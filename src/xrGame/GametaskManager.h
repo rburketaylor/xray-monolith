@@ -19,6 +19,9 @@ class CGameTaskManager
 
 	Flags8 m_flags;
 	u32 m_actual_frame;
+	//	bumped on every change that can alter HasGameTask(ml, only_inprocess)
+	//	results (task added, task state changed, map location detached)
+	u32 m_tasks_generation;
 protected:
 	void UpdateActiveTask();
 public:
@@ -32,6 +35,8 @@ public:
 	CGameTask* GiveGameTaskToActor(CGameTask* t, u32 timeToComplete, bool bCheckExisting, u32 timer_ttl);
 	void SetTaskState(const shared_str& id, ETaskState state);
 	void SetTaskState(CGameTask* t, ETaskState state);
+	//	per-frame task-lookup cache invalidator (see CMapLocation::task_in_progress)
+	u32 GetTasksGeneration() const { return m_tasks_generation; }
 
 	void RPC_UpdateTaskName();
 

@@ -519,15 +519,34 @@ void CUILevelMap::UpdateSpots()
 		}
 	}
 
-	std::stable_sort(m_ChildWndList.begin(), m_ChildWndList.end(),
-		[](CUIWindow* a, CUIWindow* b) {
-			CMapSpot* sa = smart_cast<CMapSpot*>(a);
-			CMapSpot* sb = smart_cast<CMapSpot*>(b);
-			int la = sa ? sa->get_location_level() : 0;
-			int lb = sb ? sb->get_location_level() : 0;
-			return la < lb;
+	// every child here is a map spot (see the unchecked attach in UpdateSpot);
+	// read each sort key once instead of twice per comparison (smart_cast +
+	// virtual get_location_level on every stable_sort comparison). Sorting the
+	// keys keeps the stable order the spots were attached in.
+	m_spot_sort_keys.clear();
+	m_spot_sort_keys.reserve(m_ChildWndList.size());
+	u32 spot_idx = 0;
+	for (WINDOW_LIST_it wi = m_ChildWndList.begin(); wi != m_ChildWndList.end(); ++wi, ++spot_idx)
+	{
+		//	the level label and other non-spot children keep the previous
+		//	comparator's null-cast fallback (level 0) and sort to the front
+		CMapSpot* spot = smart_cast<CMapSpot*>(*wi);
+		m_spot_sort_keys.push_back(std::make_pair(spot ? spot->get_location_level() : 0, spot_idx));
+	}
+
+	std::sort(m_spot_sort_keys.begin(), m_spot_sort_keys.end(),
+		[](const std::pair<int, u32>& a, const std::pair<int, u32>& b) {
+			if (a.first != b.first) return a.first < b.first;
+			return a.second < b.second;
 		}
 	);
+
+	WINDOW_LIST sorted;
+	sorted.reserve(m_ChildWndList.size());
+	for (u32 i = 0; i < m_spot_sort_keys.size(); ++i)
+		sorted.push_back(m_ChildWndList[m_spot_sort_keys[i].second]);
+
+	m_ChildWndList.swap(sorted);
 }
 
 Frect CUILevelMap::CalcWndRectOnGlobal()

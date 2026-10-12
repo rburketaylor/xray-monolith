@@ -41,6 +41,8 @@ CMapLocation::CMapLocation(LPCSTR type, u16 object_id)
 	m_minimap_spot_pointer = NULL;
 	m_complex_spot = NULL;
 	m_complex_spot_pointer = NULL;
+	m_task_lookup_gen = u32(-1); // force a fresh lookup on first use
+	m_task_lookup_ptr = NULL;
 
 	m_level_map_spot_border = NULL;
 	m_mini_map_spot_border = NULL;
@@ -383,6 +385,18 @@ bool CMapLocation::Update() //returns actual
 extern xr_vector<CLevelChanger*> g_lchangers;
 xr_vector<u32> map_point_path;
 
+CGameTask* CMapLocation::task_in_progress()
+{
+	CGameTaskManager& task_manager = Level().GameTaskManager();
+	const u32 gen = task_manager.GetTasksGeneration();
+	if (m_task_lookup_gen != gen)
+	{
+		m_task_lookup_gen = gen;
+		m_task_lookup_ptr = task_manager.HasGameTask(this, true);
+	}
+	return m_task_lookup_ptr;
+}
+
 void CMapLocation::UpdateSpot(CUICustomMap* map, CMapSpot* sp, CMapSpotPointer* pt)
 {
 	if (map->MapName() == GetLevelName())
@@ -401,7 +415,7 @@ void CMapLocation::UpdateSpot(CUICustomMap* map, CMapSpot* sp, CMapSpotPointer* 
 
 		if (IsGameTypeSingle())
 		{
-			CGameTask* ml_task = Level().GameTaskManager().HasGameTask(this, true);
+			CGameTask* ml_task = task_in_progress();
 			if (ml_task)
 			{
 				CGameTask* active_task = Level().GameTaskManager().ActiveTask();
@@ -542,7 +556,7 @@ void CMapLocation::UpdateSpotPointer(CUICustomMap* map, CMapSpotPointer* sp)
 		if (IsGameTypeSingle())
 		{
 			float dist_to_target = Level().CurrentEntity()->Position().distance_to(ttt);
-			CGameTask* task = Level().GameTaskManager().HasGameTask(this, true);
+			CGameTask* task = task_in_progress();
 			if (task)
 			{
 				map->SetPointerDistance(dist_to_target);

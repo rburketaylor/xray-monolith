@@ -131,6 +131,8 @@ class CUILevelMap : public CUICustomMap
 	CUITextWnd* m_label; // owned and freed in dtor — do not enable autodelete
 	float m_label_scale_max; // hide label when global zoom >= this; 0 = always show
 	Fvector2 m_label_offset; // global_rect units from rect centre; +x right, +y up (scaled by zoom at apply)
+	// reusable (spot level, original index) sort keys for UpdateSpots
+	xr_vector<std::pair<int, u32> > m_spot_sort_keys;
 	CUILevelMap(const CUILevelMap& obj)
 	{
 	}
@@ -192,6 +194,9 @@ class CUIMiniMapWidget : public CUIWindow
 		u32 base_color;
 		u32 color;
 		u32 stamp;
+		// the location's spot type, interned once: the per-frame filters below
+		// look it up in shared_str sets and would otherwise build a temporary
+		shared_str type;
 	};
 
 	struct SIconOverride
@@ -294,7 +299,7 @@ protected:
 	void release(SPoolEntry& e);
 	void prune_vanished();
 	SPoolEntry* acquire(CMapLocation* loc);
-	bool pointer_allowed(CMapLocation* loc) const;
+	bool pointer_allowed(CMapLocation* loc, const shared_str& type) const;
 	void refit_pointers();
 	LPCSTR spot_shader() const { return m_spot_shader.size() ? m_spot_shader.c_str() : m_shader.c_str(); }
 	void scale_spot(CUIStatic* sp, float scale);

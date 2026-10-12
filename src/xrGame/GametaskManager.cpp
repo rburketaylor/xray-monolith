@@ -51,6 +51,7 @@ CGameTaskManager::CGameTaskManager()
 	m_flags.zero();
 	m_flags.set(eChanged, TRUE);
 	m_gametasks = NULL;
+	m_tasks_generation = 0;
 
 	if (g_active_task_id.size())
 	{
@@ -104,6 +105,7 @@ CGameTask* CGameTaskManager::GiveGameTaskToActor(CGameTask* t, u32 timeToComplet
 	m_flags.set(eChanged, TRUE);
 
 	GetGameTasks().push_back(SGameTaskKey(t->m_ID));
+	++m_tasks_generation; // new task: HasGameTask(ml, true) results may change
 	GetGameTasks().back().game_task = t;
 	t->m_ReceiveTime = Level().GetGameTime();
 	t->m_TimeToComplete = t->m_ReceiveTime + timeToComplete * 1000; //ms
@@ -135,6 +137,7 @@ void CGameTaskManager::SetTaskState(CGameTask* t, ETaskState state)
 {
 	PROF_EVENT("CGameTaskManager::SetTaskState");
 	m_flags.set(eChanged, TRUE);
+	++m_tasks_generation; // state change: only_inprocess filtering may change
 
 	t->SetTaskState(state);
 
@@ -268,7 +271,10 @@ void CGameTaskManager::MapLocationRelcase(CMapLocation* ml)
 
 	CGameTask* gt = HasGameTask(ml, false);
 	if (gt)
+	{
+		++m_tasks_generation; // location detached: cached lookups must drop
 		gt->RemoveMapLocations(true);
+	}
 }
 
 CGameTask* CGameTaskManager::HasGameTask(const CMapLocation* ml, bool only_inprocess)
