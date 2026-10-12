@@ -115,7 +115,11 @@ void CUIScrollView::Clear()
 	Msg("[invbar] ScrollView::Clear (bar %d, pad_y %.0f)", m_VScrollBar->GetScrollPos(), m_pad->GetWndPos().y);
 	m_pad->DetachAll();
 	m_flags.set(eNeedRecalc,TRUE);
-	ScrollToBegin();
+	// Do NOT ScrollToBegin() here. Script-driven inventory refreshes Clear()
+	// and immediately re-add the same content; resetting the scroll position
+	// on every rebuild jumped the list out from under the user mid-scroll.
+	// Callers that genuinely want to reset can call ScrollToBegin() after
+	// refilling - with the content back in place it lands on a valid range.
 }
 
 Fvector2 CUIScrollView::GetPadSize()
