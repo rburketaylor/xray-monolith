@@ -420,13 +420,17 @@ void CUIMainIngameWnd::RenderQuickInfos()
 		return;
 
 	static CGameObject* pObject = NULL;
+	static LPCSTR last_actor_action = NULL;
 	LPCSTR actor_action = pActor->GetDefaultActionForObject();
 	UIStaticQuickHelp->Show(NULL != actor_action);
 
-	if (NULL != actor_action)
+	if (NULL != actor_action && actor_action != last_actor_action)
 	{
-		if (stricmp(actor_action, UIStaticQuickHelp->GetText()))
-			UIStaticQuickHelp->SetTextST(actor_action);
+		// actor_action is a string-table key (interned, so pointer-stable); the
+		// old stricmp compared it against the *translated* text and therefore
+		// never matched, re-translating every frame. Compare the applied key.
+		last_actor_action = actor_action;
+		UIStaticQuickHelp->SetTextST(actor_action);
 	}
 
 	if (pObject != pActor->ObjectWeLookingAt())
@@ -434,6 +438,7 @@ void CUIMainIngameWnd::RenderQuickInfos()
 		UIStaticQuickHelp->SetTextST(actor_action ? actor_action : " ");
 		UIStaticQuickHelp->ResetColorAnimation();
 		pObject = pActor->ObjectWeLookingAt();
+		last_actor_action = actor_action;
 	}
 }
 
