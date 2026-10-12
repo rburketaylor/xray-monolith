@@ -777,7 +777,7 @@ bool CScriptStorage::load_buffer(lua_State* L, LPCSTR caBuffer, size_t tSize, LP
 	if (l_iErrorCode)
 	{
 //#ifdef DEBUG
-		if (Core.isDebug()) print_output(L,caScriptName,l_iErrorCode);
+		print_output(L,caScriptName,l_iErrorCode);
 //#endif //-DEBUG
 		on_error(L);
 		return (false);
