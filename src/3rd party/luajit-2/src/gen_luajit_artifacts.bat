@@ -3,8 +3,9 @@ setlocal EnableExtensions EnableDelayedExpansion
 pushd "%~dp0"
 
 REM Determine DynASM path and platform flags
+REM (relative path: works under wine/msbuild too, where %~dp0 breaks on the space in "3rd party")
 echo [LuaJIT] Determine DynASM path and if platform is x64
-set "DYNASM=%~dp0..\dynasm\dynasm.lua"
+set "DYNASM=..\dynasm\dynasm.lua"
 if /I "%~1"=="x64" (
   echo [LuaJIT] Platform is x64, set -D P64
   set "DFLAGS=-D WIN -D JIT -D FFI -D P64"
