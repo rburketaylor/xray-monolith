@@ -339,7 +339,10 @@ int CUIScrollBar::PosViewFromScroll(int view_size, int view_offs)
 void CUIScrollBar::SetScrollPosClamped(int iPos)
 {
 	m_iScrollPos = iPos;
-	clamp(m_iScrollPos, m_iMinPos, m_iMaxPos - m_iPageSize + 1);
+	// Floor the upper bound at the minimum: while a relayout transiently
+	// collapses the range below the page size, max-page+1 goes negative and
+	// the clamp would write garbage positions.
+	clamp(m_iScrollPos, m_iMinPos, _max(m_iMinPos, m_iMaxPos - m_iPageSize + 1));
 }
 
 void CUIScrollBar::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)

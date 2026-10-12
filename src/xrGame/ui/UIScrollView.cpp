@@ -114,7 +114,11 @@ void CUIScrollView::Clear()
 {
 	m_pad->DetachAll();
 	m_flags.set(eNeedRecalc,TRUE);
-	ScrollToBegin();
+	// Do not ScrollToBegin() here. Script-driven refreshes Clear() and
+	// immediately re-add the same content; resetting the scroll position on
+	// every rebuild jumped the list out from under the user mid-scroll.
+	// Callers that genuinely want a reset can call ScrollToBegin() after
+	// refilling.
 }
 
 Fvector2 CUIScrollView::GetPadSize()
@@ -188,13 +192,36 @@ void CUIScrollView::RecalcSize()
 	m_visible_rgn.set(-1, -1);
 }
 
-void CUIScrollView::UpdateScroll()
+void CUIScrollView::UpdateScroll(bool pad_drag_sync)
 {
 	Fvector2 w_pos = m_pad->GetWndPos();
 	m_VScrollBar->SetHeight(GetHeight());
-	m_VScrollBar->SetRange(0, iFloor(m_pad->GetHeight() * Scroll2ViewV()));
+	int range_max = iFloor(m_pad->GetHeight() * Scroll2ViewV());
 
-	m_VScrollBar->SetScrollPos(iFloor(-w_pos.y));
+	if (pad_drag_sync)
+	{
+		// The user is dragging the pad itself (OnMouseAction): the pad offset
+		// is the live input, so sync the bar from it.
+		m_VScrollBar->SetRange(0, range_max);
+		m_VScrollBar->SetScrollPos(iFloor(-w_pos.y));
+		return;
+	}
+
+	// Layout path: the bar position is the user's scroll intent and the
+	// source of truth. Script-driven refreshes Clear() and re-Add() every
+	// item; while that runs the pad is re-attached at the origin and its
+	// height is transiently smaller than the view, so re-deriving the
+	// position from the pad offset - and clamping it against the collapsed
+	// range - silently reset the bar and jumped the list mid-scroll. Never
+	// let a relayout reduce the position: while it exceeds what the current
+	// (transient) extent allows, keep bar, range and pad untouched; the
+	// settled layout pass falls through and re-applies them normally.
+	int pos = m_VScrollBar->GetScrollPos();
+	if (pos > _max(0, range_max - m_VScrollBar->GetPageSize() + 1))
+		return;
+
+	m_VScrollBar->SetRange(0, range_max);
+	m_VScrollBar->SetScrollPos(pos);
 }
 
 float CUIScrollView::Scroll2ViewV()
@@ -286,8 +313,20 @@ bool CUIScrollView::OnMouseAction(float x, float y, EUIMessages mouse_action)
 		m_VScrollBar->TryScrollInc(true);
 		res = true;
 		break;
+	case WINDOW_LBUTTON_DOWN:
+		// A click that no child window consumed landed on empty list space -
+		// the only legitimate start of a pad drag. Capture the view here so
+		// that MOUSE_MOVE below only drags the pad for THIS click. Reacting
+		// to any held button hijacked item drags (e.g. dragging a tool onto
+		// a stack to disassemble it): sweeping the cursor back over the list
+		// scrolled it under the user's hand.
+		SetCapture(this, true);
+		break;
+	case WINDOW_LBUTTON_UP:
+		SetCapture(this, false);
+		break;
 	case WINDOW_MOUSE_MOVE:
-		if (pInput->iGetAsyncBtnState(0))
+		if (IsMouseCapturer() && pInput->iGetAsyncBtnState(0))
 		{
 			Fvector2 curr_pad_pos = m_pad->GetWndPos();
 			curr_pad_pos.y += GetUICursor().GetCursorPositionDelta().y;
@@ -296,7 +335,7 @@ bool CUIScrollView::OnMouseAction(float x, float y, EUIMessages mouse_action)
 			max_pos = _max(0.0f, max_pos);
 			clamp(curr_pad_pos.y, -max_pos, 0.0f);
 			m_pad->SetWndPos(curr_pad_pos);
-			UpdateScroll();
+			UpdateScroll(true);
 			res = true;
 		}
 		break;
