@@ -3,6 +3,21 @@
 #include "xrUIXmlParser.h"
 #include "UIXmlInit.h"
 
+// shared by every PDA message item: the document is read-only, so one parse
+// is enough for the whole session (same pattern as GetActorMenuItemXml).
+static CUIXml& GetPdaMsgXml()
+{
+	static CUIXml uiXml;
+	static bool isXmlReady = false;
+
+	if (!isXmlReady)
+	{
+		uiXml.Load(CONFIG_PATH, UI_PATH, "maingame_pda_msg.xml");
+		isXmlReady = true;
+	}
+	return uiXml;
+}
+
 CUIPdaMsgListItem::~CUIPdaMsgListItem() {
 	if (news) {
 		xr_delete(news);
@@ -34,8 +49,7 @@ void CUIPdaMsgListItem::InitPdaMsgListItem(const Fvector2& size)
 {
 	inherited::SetWndSize(size);
 
-	CUIXml uiXml;
-	uiXml.Load(CONFIG_PATH, UI_PATH, "maingame_pda_msg.xml");
+	CUIXml& uiXml = GetPdaMsgXml();
 
 	CUIXmlInit xml_init;
 	AttachChild(&UIIcon);
