@@ -80,6 +80,28 @@ namespace luabind { namespace detail
 
 	#endif
 
+		// The check above is compiled out in release builds (LUABIND_NO_ERROR_CHECKING).
+		// If the base class name resolved to nil, e.g. because the script defining it
+		// failed to load, the NULL userdata would be passed to add_base_class() and
+		// dereferenced there, crashing the game.
+		if (!is_class_rep(L, 1))
+		{
+			const char* base_name = lua_tostring(L, 1);
+			string_class err_line("expected class '");
+			err_line += cl_rep->name();
+			err_line += "' to derive from ";
+			if (base_name != nullptr)
+			{
+				err_line += "'";
+				err_line += base_name;
+				err_line += "'";
+			}
+			else
+				err_line += "an unregistered/nil base";
+			lua_pushstring(L, err_line.c_str());
+			lua_error(L);
+		}
+
 		class_rep* base = static_cast<class_rep*>(lua_touserdata(L, 1));
 		class_rep::base_info binfo;
 
