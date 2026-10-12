@@ -323,8 +323,20 @@ bool CUIScrollView::OnMouseAction(float x, float y, EUIMessages mouse_action)
 		m_VScrollBar->TryScrollInc(true);
 		res = true;
 		break;
+	case WINDOW_LBUTTON_DOWN:
+		// A click that no child window consumed landed on empty list space -
+		// the only legitimate start of a pad drag. Capture the view here so
+		// that MOUSE_MOVE below only drags the pad for THIS click. The old
+		// code dragged on any held left button, which hijacked item drags
+		// (e.g. dragging a tool onto a stack to disassemble it): sweeping the
+		// cursor back over the list scrolled it under the user's hand.
+		SetCapture(this, true);
+		break;
+	case WINDOW_LBUTTON_UP:
+		SetCapture(this, false);
+		break;
 	case WINDOW_MOUSE_MOVE:
-		if (pInput->iGetAsyncBtnState(0))
+		if (IsMouseCapturer() && pInput->iGetAsyncBtnState(0) && !m_flags.test(eNeedRecalc))
 		{
 			Fvector2 curr_pad_pos = m_pad->GetWndPos();
 			curr_pad_pos.y += GetUICursor().GetCursorPositionDelta().y;
