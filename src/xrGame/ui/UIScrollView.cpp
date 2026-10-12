@@ -19,6 +19,8 @@ CUIScrollView::CUIScrollView()
 	m_pad = NULL;
 	m_VScrollBar = NULL;
 	m_visible_rgn.set(-1, -1);
+	m_last_update_scroll_pos = -1;
+	m_last_update_child_count = -1;
 }
 
 CUIScrollView::CUIScrollView(CUIFixedScrollBar* scroll_bar)
@@ -33,6 +35,8 @@ CUIScrollView::CUIScrollView(CUIFixedScrollBar* scroll_bar)
 	SetFixedScrollBar(true);
 	m_pad = NULL;
 	m_visible_rgn.set(-1, -1);
+	m_last_update_scroll_pos = -1;
+	m_last_update_child_count = -1;
 
 	m_VScrollBar = scroll_bar;
 	m_VScrollBar->SetAutoDelete(true);
@@ -127,10 +131,55 @@ Fvector2 CUIScrollView::GetPadSize()
 	return m_pad->GetWndSize();
 }
 
+// short lists are cheaper to walk fully than to cull
+static const int SCROLL_VIEW_CULLING_MIN_ITEMS = 16;
+
 void CUIScrollView::Update()
 {
 	if (m_flags.test(eNeedRecalc))
 		RecalcSize();
+
+	if (!m_pad) return;
+
+	// Draw() keeps m_visible_rgn as the [first,last] child range it rendered.
+	// Reuse it to update only those children - background lists otherwise pay
+	// a full update per item while showing a handful. The range is reset to -1
+	// by anything that changes the layout or the visible window (add/remove,
+	// RecalcSize, scroll), so a valid range means the geometry is unchanged.
+	// Short lists always update everything.
+	const int child_count = m_pad->GetChildNum();
+	const int scroll_pos = m_VScrollBar ? m_VScrollBar->GetScrollPos() : 0;
+
+	if (m_visible_rgn.x != -1 && child_count > SCROLL_VIEW_CULLING_MIN_ITEMS
+		&& m_visible_rgn.x < child_count
+		&& scroll_pos == m_last_update_scroll_pos
+		&& child_count == m_last_update_child_count)
+	{
+		m_last_update_scroll_pos = scroll_pos;
+		m_last_update_child_count = child_count;
+
+		UpdateCursorFocus();
+
+		{
+			xrCriticalSectionGuard guard(m_pad->csUi);
+
+			const int last = _min(m_visible_rgn.y, child_count - 1);
+			WINDOW_LIST_it it = m_pad->GetChildWndList().begin();
+			std::advance(it, m_visible_rgn.x);
+
+			for (int idx = m_visible_rgn.x; idx <= last; ++it, ++idx)
+			{
+				if (!(*it)->IsShown()) continue;
+				(*it)->Update();
+			}
+		}
+
+		CollectGarbage();
+		return;
+	}
+
+	m_last_update_scroll_pos = scroll_pos;
+	m_last_update_child_count = child_count;
 
 	inherited::Update();
 }

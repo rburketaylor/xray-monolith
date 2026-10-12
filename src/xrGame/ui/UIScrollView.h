@@ -35,6 +35,11 @@ protected:
 	shared_str m_scrollbar_profile;
 	Ivector2 m_visible_rgn;
 
+	// Update() visits only the children Draw() would when the visible range is
+	// known and stable; the counts below detect movement or list changes.
+	int m_last_update_scroll_pos;
+	int m_last_update_child_count;
+
 	virtual void RecalcSize();
 	void UpdateScroll();
 	void __stdcall OnScrollV(CUIWindow*, void*);
