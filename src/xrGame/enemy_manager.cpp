@@ -135,11 +135,29 @@ float CEnemyManager::evaluate(const CEntityAlive* object) const
 	bool wounded = stalker ? stalker->wounded(&m_object->movement().restrictions()) : false;
 	if (wounded)
 	{
+		// not memoized on purpose: assigned_wounded() can be redistributed
+		// between the enemy-manager updates of one frame
 		if (m_stalker && m_stalker->agent_manager().enemy().assigned_wounded(object, m_stalker))
 			return (0.f);
 
 		float distance = m_object->Position().distance_to_sqr(object->Position());
 		return (distance);
+	}
+
+	ai().ef_storage().non_alife().member_item() = 0;
+	ai().ef_storage().non_alife().enemy_item() = 0;
+	ai().ef_storage().non_alife().member() = m_object;
+	ai().ef_storage().non_alife().enemy() = object;
+
+	// Per-frame memo: within one frame a candidate is scored both from useful()
+	// (memory scan) and from the selection pass in update(). Actors are not
+	// memoized so the m_ready_to_save side effect above still runs on every
+	// call. The wounded paths above are never memoized.
+	if (!actor)
+	{
+		cached_evaluate& cached_value = m_evaluate_cache[object->ID()];
+		if (cached_value.frame == Device.dwFrame)
+			return (cached_value.result);
 	}
 
 	float d2 = m_object->Position().distance_to_sqr(object->Position());
@@ -185,22 +203,26 @@ float CEnemyManager::evaluate(const CEntityAlive* object) const
 	}
 
 #ifdef USE_EVALUATOR
-	ai().ef_storage().non_alife().member_item() = 0;
-	ai().ef_storage().non_alife().enemy_item() = 0;
-	ai().ef_storage().non_alife().member() = m_object;
-	ai().ef_storage().non_alife().enemy() = object;
-
-	return (
+	const float result = (
 		penalty +
 		d2 / 100.f
 	);
 #else // USE_EVALUATOR
-	float					distance = m_object->Position().distance_to_sqr(object->Position());
-	return					(
+	float distance = m_object->Position().distance_to_sqr(object->Position());
+	const float result = (
 		1000.f*(visible ? 0.f : 1.f) +
 		distance
 	);
 #endif // USE_EVALUATOR
+
+	if (!actor)
+	{
+		cached_evaluate& cached_value = m_evaluate_cache[object->ID()];
+		cached_value.frame = Device.dwFrame;
+		cached_value.result = result;
+	}
+
+	return (result);
 }
 
 bool CEnemyManager::expedient(const CEntityAlive* object) const
@@ -226,6 +248,7 @@ void CEnemyManager::reload(LPCSTR section)
 	m_last_enemy_change = 0;
 	m_useful_callback.clear();
 	m_useful_cache.clear();
+	m_evaluate_cache.clear();
 	VERIFY(m_ready_to_save);
 }
 
@@ -256,6 +279,7 @@ void CEnemyManager::remove_links(CObject* object)
 	// Drop this entity's cached verdict: the entry is keyed by entity ID and
 	// object IDs are recycled, so a new object could inherit its result.
 	m_useful_cache.erase(object->ID());
+	m_evaluate_cache.erase(object->ID());
 }
 
 void CEnemyManager::ignore_monster_threshold(const float& ignore_monster_threshold)

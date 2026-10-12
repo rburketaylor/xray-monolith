@@ -21,6 +21,12 @@ struct cached_useful
     bool result = false;
 };
 
+struct cached_evaluate
+{
+    u32 frame = u32(-1);
+    float result = 0.f;
+};
+
 class CEnemyManager : public CObjectManager<const CEntityAlive>
 {
 public:
@@ -31,6 +37,7 @@ public:
 private:
 	CCustomMonster* m_object;
     mutable xr_unordered_flat_map<u16, cached_useful> m_useful_cache;
+    mutable xr_unordered_flat_map<u16, cached_evaluate> m_evaluate_cache;
 	CAI_Stalker* m_stalker;
 	float m_ignore_monster_threshold;
 	float m_max_ignore_distance;
