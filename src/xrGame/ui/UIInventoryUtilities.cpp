@@ -52,7 +52,9 @@ ui_shader* g_OutfitUpgradeIconsShader = NULL;
 ui_shader* g_WeaponUpgradeIconsShader = NULL;
 ui_shader* g_tmpWMShader = NULL;
 
-xr_map<LPCSTR, ui_shader*> g_CustomIconShaders;
+// keyed by shared_str (content), not LPCSTR: a raw pointer key collapses on
+// address, so equal names from different buffers made duplicate shaders
+xr_map<shared_str, ui_shader*> g_CustomIconShaders;
 
 static CUIStatic* GetUIStatic();
 
@@ -215,7 +217,11 @@ const ui_shader& InventoryUtilities::GetEquipmentIconsShader()
 
 ui_shader& InventoryUtilities::GetCustomIconTextureShader(LPCSTR name)
 {
-	xr_map<LPCSTR, ui_shader*>::iterator it = g_CustomIconShaders.find(name);
+	// callers pass pSettings r_string values (interned, stable); the shared_str
+	// copy at this boundary makes the lookup compare the name, not its address
+	shared_str key(name);
+
+	auto it = g_CustomIconShaders.find(key);
 
 	if (it != g_CustomIconShaders.end())
 		return *(it)->second;
@@ -223,11 +229,7 @@ ui_shader& InventoryUtilities::GetCustomIconTextureShader(LPCSTR name)
 	ui_shader* shader = xr_new<ui_shader>();
 	(*shader)->create("hud\\default", name);
 
-	std::pair<LPCSTR, ui_shader*> name_shader;
-	name_shader.first = name;
-	name_shader.second = shader;
-
-	g_CustomIconShaders.insert(name_shader);
+	g_CustomIconShaders.insert(std::make_pair(key, shader));
 
 	return *shader;
 }
