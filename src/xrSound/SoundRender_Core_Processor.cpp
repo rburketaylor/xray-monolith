@@ -68,6 +68,12 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 
 	// Update emmitters
 	//Msg	("! update: emitters");
+	// First pass updates every emitter exactly as before and only counts the
+	// stopped ones; the second pass compacts the survivors in place and
+	// deletes the stopped objects front to back, so object destruction stays
+	// as deterministic as the one-by-one erase it replaces. Removing a stop
+	// burst costs two linear passes instead of one O(N) shift per stop.
+	u32 stopped = 0;
 	for (it = 0; it < s_emitters.size(); it++)
 	{
 		CSoundRender_Emitter* pEmitter = s_emitters[it];
@@ -77,12 +83,20 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 			pEmitter->marker = s_emitters_u;
 		}
 		if (!pEmitter->isPlaying())
+			stopped++;
+	}
+	if (stopped)
+	{
+		u32 alive = 0;
+		for (it = 0; it < s_emitters.size(); it++)
 		{
-			// Stopped
-			xr_delete(pEmitter);
-			s_emitters.erase(s_emitters.begin() + it);
-			it--;
+			CSoundRender_Emitter* pEmitter = s_emitters[it];
+			if (pEmitter->isPlaying())
+				s_emitters[alive++] = pEmitter;
+			else
+				xr_delete(pEmitter);
 		}
+		s_emitters.resize(alive);
 	}
 
 	// Get currently rendering emitters
