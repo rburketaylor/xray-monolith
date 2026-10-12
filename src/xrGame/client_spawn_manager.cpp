@@ -17,6 +17,32 @@
 CClientSpawnManager::~CClientSpawnManager()
 {
 	VERIFY(m_registry.empty());
+	VERIFY(m_requested_index.empty());
+}
+
+void CClientSpawnManager::index_add(ALife::_OBJECT_ID requesting_id, ALife::_OBJECT_ID requested_id)
+{
+	REQUESTER_REGISTRY& requesters = m_requested_index[requested_id];
+	REQUESTER_REGISTRY::iterator I = std::lower_bound(requesters.begin(), requesters.end(), requesting_id);
+	if ((I != requesters.end()) && (*I == requesting_id))
+		return;
+
+	requesters.insert(I, requesting_id);
+}
+
+void CClientSpawnManager::index_remove(ALife::_OBJECT_ID requesting_id, ALife::_OBJECT_ID requested_id)
+{
+	REQUESTED_INDEX::iterator I = m_requested_index.find(requested_id);
+	if (I == m_requested_index.end())
+		return;
+
+	REQUESTER_REGISTRY& requesters = (*I).second;
+	REQUESTER_REGISTRY::iterator i = std::lower_bound(requesters.begin(), requesters.end(), requesting_id);
+	if ((i != requesters.end()) && (*i == requesting_id))
+		requesters.erase(i);
+
+	if (requesters.empty())
+		m_requested_index.erase(I);
 }
 
 void CClientSpawnManager::add(ALife::_OBJECT_ID requesting_id, ALife::_OBJECT_ID requested_id,
@@ -59,6 +85,7 @@ void CClientSpawnManager::add(ALife::_OBJECT_ID requesting_id, ALife::_OBJECT_ID
 		REQUESTED_REGISTRY registry;
 		registry.insert(std::make_pair(requested_id, spawn_callback));
 		m_registry.insert(std::make_pair(requesting_id, registry));
+		index_add(requesting_id, requested_id);
 		return;
 	}
 
@@ -66,6 +93,7 @@ void CClientSpawnManager::add(ALife::_OBJECT_ID requesting_id, ALife::_OBJECT_ID
 	if (J == (*I).second.end())
 	{
 		(*I).second.insert(std::make_pair(requested_id, spawn_callback));
+		index_add(requesting_id, requested_id);
 		return;
 	}
 
@@ -85,6 +113,7 @@ void CClientSpawnManager::remove(REQUESTED_REGISTRY& registry, ALife::_OBJECT_ID
 	}
 
 	registry.erase(I);
+	index_remove(requesting_id, requested_id);
 }
 
 void CClientSpawnManager::remove(ALife::_OBJECT_ID requesting_id, ALife::_OBJECT_ID requested_id)
@@ -107,21 +136,30 @@ void CClientSpawnManager::remove(ALife::_OBJECT_ID requesting_id, ALife::_OBJECT
 
 void CClientSpawnManager::clear(ALife::_OBJECT_ID requested_id)
 {
-	REQUEST_REGISTRY::iterator I = m_registry.begin();
-	REQUEST_REGISTRY::iterator E = m_registry.end();
-	for (; I != E;)
-	{
-		remove((*I).second, (*I).first, requested_id, true);
-		if (!(*I).second.empty())
-		{
-			++I;
-			continue;
-		}
+	REQUESTED_INDEX::const_iterator I = m_requested_index.find(requested_id);
+	if (I == m_requested_index.end())
+		return;
 
-		REQUEST_REGISTRY::iterator J = I;
-		++J;
-		m_registry.erase(I);
-		I = J;
+	// Visit only the requesters that actually hold a callback on requested_id.
+	// The requester list is kept sorted, so the per-requester remove() calls
+	// happen in the same ascending-id order the previous full m_registry walk
+	// produced for these buckets. Buckets that never referenced requested_id
+	// are not touched anymore (the old code also called remove() on them, which
+	// only logged a spurious "There is no spawn callback" error).
+	const REQUESTER_REGISTRY requesters = (*I).second;
+	REQUESTER_REGISTRY::const_iterator i = requesters.begin();
+	REQUESTER_REGISTRY::const_iterator e = requesters.end();
+	for (; i != e; ++i)
+	{
+		REQUEST_REGISTRY::iterator J = m_registry.find(*i);
+		if (J == m_registry.end())
+			continue;
+
+		remove((*J).second, (*J).first, requested_id, true);
+		if (!(*J).second.empty())
+			continue;
+
+		m_registry.erase(J);
 	}
 }
 
@@ -141,12 +179,18 @@ void CClientSpawnManager::callback(CObject* object)
 	if (I == m_registry.end())
 		return;
 
-	REQUESTED_REGISTRY::iterator i = (*I).second.begin();
-	REQUESTED_REGISTRY::iterator e = (*I).second.end();
+	REQUESTED_REGISTRY& registry = (*I).second;
+	REQUESTED_REGISTRY::iterator i = registry.begin();
+	REQUESTED_REGISTRY::iterator e = registry.end();
 	for (; i != e; ++i)
 		callback((*i).second, object);
 
-	(*I).second.clear();
+	// the whole bucket is dropped below, so every (requester, requested) pair
+	// in it has to leave the secondary index as well
+	for (i = registry.begin(), e = registry.end(); i != e; ++i)
+		index_remove((*I).first, (*i).first);
+
+	registry.clear();
 	m_registry.erase(I);
 }
 
@@ -207,4 +251,5 @@ void CClientSpawnManager::dump		(ALife::_OBJECT_ID	requesting_id) const
 void CClientSpawnManager::clear()
 {
 	m_registry.clear();
+	m_requested_index.clear();
 }

@@ -29,14 +29,22 @@ public:
 public:
 	typedef xr_map<ALife::_OBJECT_ID, CSpawnCallback> REQUESTED_REGISTRY;
 	typedef xr_map<ALife::_OBJECT_ID, REQUESTED_REGISTRY> REQUEST_REGISTRY;
+	typedef xr_vector<ALife::_OBJECT_ID> REQUESTER_REGISTRY;
+	// requested id -> sorted list of requesting ids holding a callback on it
+	typedef xr_map<ALife::_OBJECT_ID, REQUESTER_REGISTRY> REQUESTED_INDEX;
 
 private:
 	REQUEST_REGISTRY m_registry;
+	REQUESTED_INDEX m_requested_index;
 
 protected:
 	void remove(REQUESTED_REGISTRY& registry, ALife::_OBJECT_ID requesting_id, ALife::_OBJECT_ID requested_id,
 	            bool no_warning = false);
 	void merge_spawn_callbacks(CSpawnCallback& new_callback, CSpawnCallback& old_callback);
+
+private:
+	void index_add(ALife::_OBJECT_ID requesting_id, ALife::_OBJECT_ID requested_id);
+	void index_remove(ALife::_OBJECT_ID requesting_id, ALife::_OBJECT_ID requested_id);
 
 public:
 	IC CClientSpawnManager();
