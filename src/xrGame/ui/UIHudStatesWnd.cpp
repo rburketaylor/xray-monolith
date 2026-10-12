@@ -145,6 +145,8 @@ void CUIHudStatesWnd::InitFromXml(CUIXml& xml, LPCSTR path)
 	//	m_ui_weapon_icon->Enable	( false );
 	m_ui_weapon_icon_rect = m_ui_weapon_icon->GetWndRect();
 
+	m_last_icon_section = NULL; // no icon applied yet
+
 	//	m_ui_armor_bar    = UIHelper::CreateProgressBar( xml, "progress_bar_armor", this );
 
 	//	m_progress_self = xr_new<CUIProgressShape>();
@@ -376,7 +378,7 @@ void CUIHudStatesWnd::UpdateActiveItemInfo(CActor* actor)
 
 		//		UIWeaponBack.SetText		( str_name.c_str() );
 		m_fire_mode->SetText(m_item_info.fire_mode.c_str());
-		SetAmmoIcon(m_item_info.icon.c_str());
+		SetAmmoIcon(m_item_info.icon);
 
 		m_ui_weapon_cur_ammo->Show(true);
 		m_ui_weapon_fmj_ammo->Show(true);
@@ -422,7 +424,7 @@ void CUIHudStatesWnd::UpdateActiveItemInfo(CActor* actor)
 	{
 		stm->GetBriefInfo(m_item_info);
 
-		SetAmmoIcon(m_item_info.icon.c_str());
+		SetAmmoIcon(m_item_info.icon);
 		m_fire_mode->SetText(m_item_info.fire_mode.c_str());
 
 		m_ui_weapon_cur_ammo->SetText(m_item_info.cur_ammo.c_str());
@@ -463,8 +465,19 @@ void CUIHudStatesWnd::SetAmmoIcon(const shared_str& sect_name)
 	if (!sect_name.size())
 	{
 		m_ui_weapon_icon->Show(false);
+		m_last_icon_section = NULL;
 		return;
 	}
+
+	// Everything below is a pure function of the icon section and of whether
+	// that section defines icons_texture (itself a property of the section),
+	// so while the same section is on screen the static already holds the
+	// result - only redo the ini reads and the shader/rect writes on change.
+	if (sect_name == m_last_icon_section && m_ui_weapon_icon->IsShown())
+		return;
+
+	m_last_icon_section = sect_name;
+
 	m_ui_weapon_icon->Show(true);
 
 	Frect texture_rect;

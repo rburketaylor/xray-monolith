@@ -67,6 +67,12 @@ private:
 	bool m_fake_indicators_update;
 	//	bool				m_cur_state_LA[it_max];
 	bool m_b_force_update;
+
+	// Icon section currently applied to m_ui_weapon_icon. The texture rect,
+	// shader and size are pure functions of it, so SetAmmoIcon can skip the
+	// ini reads and the shader writes while it is unchanged.
+	shared_str m_last_icon_section;
+
 public:
 	CUIHudStatesWnd();
 	virtual ~CUIHudStatesWnd();
