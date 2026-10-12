@@ -38,12 +38,47 @@ dx10SamplerStateCache::SHandle dx10SamplerStateCache::GetState(D3D_SAMPLER_DESC&
 	{
 		StateRecord rec;
 		rec.m_crc = crc;
-		CreateState(desc, &rec.m_pState);
+		rec.m_desc = desc;
+		//	The base desc is aniso-independent: the variants differ only in this field.
+		rec.m_desc.MaxAnisotropy = 1;
+		rec.m_pStateAniso1 = 0;
+		rec.m_pStateAnisoMax = 0;
+		rec.m_uiAnisoMax = 0;
+		rec.m_pState = GetAnisoState(rec, m_uiMaxAnisotropy);
 		hResult = m_StateArray.size();
 		m_StateArray.push_back(rec);
 	}
 
 	return hResult;
+}
+
+ID3DSamplerState* dx10SamplerStateCache::GetAnisoState(StateRecord& rec, u32 uiMaxAniso)
+{
+	if (uiMaxAniso > 1)
+	{
+		StateDecs desc = rec.m_desc;
+		desc.MaxAnisotropy = uiMaxAniso;
+		dx10StateUtils::ValidateState(desc);
+
+		//	ValidateState() resets MaxAnisotropy to 1 for filter modes which do not
+		//	support it: those records always use the 1x variant.
+		if (desc.MaxAnisotropy > 1)
+		{
+			if ((rec.m_pStateAnisoMax == 0) || (rec.m_uiAnisoMax != uiMaxAniso))
+			{
+				_RELEASE(rec.m_pStateAnisoMax);
+				CreateState(desc, &rec.m_pStateAnisoMax);
+				rec.m_uiAnisoMax = uiMaxAniso;
+			}
+
+			return rec.m_pStateAnisoMax;
+		}
+	}
+
+	if (rec.m_pStateAniso1 == 0)
+		CreateState(rec.m_desc, &rec.m_pStateAniso1);
+
+	return rec.m_pStateAniso1;
 }
 
 void dx10SamplerStateCache::CreateState(StateDecs desc, IDeviceState** ppIState)
@@ -83,7 +118,9 @@ void dx10SamplerStateCache::ClearStateArray()
 {
 	for (u32 i = 0; i < m_StateArray.size(); ++i)
 	{
-		_RELEASE(m_StateArray[i].m_pState);
+		//	m_pState is an alias of one of the two variants.
+		_RELEASE(m_StateArray[i].m_pStateAniso1);
+		_RELEASE(m_StateArray[i].m_pStateAnisoMax);
 	}
 
 	m_StateArray.clear_not_free();
@@ -227,31 +264,26 @@ void dx10SamplerStateCache::SetMaxAnisotropy(u32 uiMaxAniso)
 
 	m_uiMaxAnisotropy = uiMaxAniso;
 
+	bool bStateChanged = false;
+
 	for (u32 i = 0; i < m_StateArray.size(); ++i)
 	{
 		StateRecord& rec = m_StateArray[i];
-		StateDecs desc;
+		IDeviceState* pOldState = rec.m_pState;
 
-		if (!rec.m_pState)
-			continue;
+		//	Both variants are kept per record: switching between them does not
+		//	create or destroy any device state once they are built. Records whose
+		//	filter mode cannot use anisotropy always resolve to the 1x variant.
+		rec.m_pState = GetAnisoState(rec, m_uiMaxAnisotropy);
 
-		rec.m_pState->GetDesc(&desc);
-
-		//	MaxAnisitropy is reset by ValidateState if not aplicable
-		//	to the filter mode used.
-		//	Reason: all checks for aniso applicability are done
-		//	in ValidateState.
-		desc.MaxAnisotropy = m_uiMaxAnisotropy;
-		dx10StateUtils::ValidateState(desc);
-
-		//	This can cause fragmentation if called too often
-		rec.m_pState->Release();
-		CreateState(desc, &rec.m_pState);
+		if (rec.m_pState != pOldState)
+			bStateChanged = true;
 	}
 
 	//	The cached handles are unchanged, but the device states they resolve to
-	//	were recreated: force the next Apply to rebind every sampler slot.
-	ResetDeviceState();
+	//	may differ: force the next Apply to rebind every sampler slot.
+	if (bStateChanged)
+		ResetDeviceState();
 }
 
 void dx10SamplerStateCache::SetMipLODBias(float uiMipLODBias)
@@ -264,16 +296,16 @@ void dx10SamplerStateCache::SetMipLODBias(float uiMipLODBias)
     for (u32 i = 0; i < m_StateArray.size(); ++i)
     {
         StateRecord& rec = m_StateArray[i];
-        StateDecs desc;
 
-        rec.m_pState->GetDesc(&desc);
+        rec.m_desc.MipLODBias = m_uiMipLODBias;
+        dx10StateUtils::ValidateState(rec.m_desc);
 
-        desc.MipLODBias = m_uiMipLODBias;
-        dx10StateUtils::ValidateState(desc);
-
-        // This can cause fragmentation if called too often
-        rec.m_pState->Release();
-        CreateState(desc, &rec.m_pState);
+        //	Both variants embed the LOD bias: drop them and rebuild the active
+        //	one. The other one is recreated on demand by SetMaxAnisotropy().
+        _RELEASE(rec.m_pStateAniso1);
+        _RELEASE(rec.m_pStateAnisoMax);
+        rec.m_uiAnisoMax = 0;
+        rec.m_pState = GetAnisoState(rec, m_uiMaxAnisotropy);
     }
 
     //	Same as SetMaxAnisotropy: the handles stay, the device states change.

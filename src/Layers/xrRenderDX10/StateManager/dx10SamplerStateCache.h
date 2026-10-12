@@ -46,12 +46,22 @@ private:
 	struct StateRecord
 	{
 		u32 m_crc;
-		IDeviceState* m_pState;
+		IDeviceState* m_pState;				//	currently active variant, used by Apply
+		IDeviceState* m_pStateAniso1;		//	variant created with MaxAnisotropy == 1
+		IDeviceState* m_pStateAnisoMax;		//	variant created with MaxAnisotropy == m_uiAnisoMax
+		u32 m_uiAnisoMax;					//	MaxAnisotropy value of m_pStateAnisoMax
+		//	Base desc both variants are created from: MaxAnisotropy is normalised
+		//	to 1 and ValidateState() has been applied. It is not part of the
+		//	state lookup (neither the CRC nor the comparison use anisotropy).
+		StateDecs m_desc;
 	};
 
 private:
 	void CreateState(StateDecs desc, IDeviceState** ppIState);
 	SHandle FindState(const StateDecs& desc, u32 StateCRC);
+
+	//	Returns the state variant built for uiMaxAniso, creating it on demand.
+	IDeviceState* GetAnisoState(StateRecord& rec, u32 uiMaxAniso);
 
 	//	Resolves the changed slots only. Returns false when the device samplers
 	//	already match the state, in which case uiMin/uiMax are undefined.
