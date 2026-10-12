@@ -34,6 +34,10 @@ CUIHudStatesWnd::CUIHudStatesWnd()
 		//--		m_zone_max_power[i] = 1.0f;
 		m_zone_feel_radius[i] = 1.0f;
 	}
+	for (int i = 0; i < it_max; ++i)
+	{
+		m_indik_texture_state[i] = 0;
+	}
 	m_zone_hit_type[ALife::infl_rad] = ALife::eHitTypeRadiation;
 	m_zone_hit_type[ALife::infl_fire] = ALife::eHitTypeBurn;
 	m_zone_hit_type[ALife::infl_acid] = ALife::eHitTypeChemicalBurn;
@@ -710,6 +714,17 @@ void CUIHudStatesWnd::UpdateIndicatorType(CActor* actor, ALife::EInfluenceType t
 	float hit_power = m_zone_cur_power[type];
 	ALife::EHitType hit_type = m_zone_hit_type[type];
 
+	// The outfit/helmet/slot lookups and the belt scan below only feed the
+	// colour decision; skip them while nothing is influencing the actor.
+	if (hit_power < EPS)
+	{
+		m_indik[type]->Show(false);
+		//		m_indik[type]->SetTextureColor( c_white );
+		//		SwitchLA( false, type );
+		actor->conditions().SetZoneDanger(0.0f, type);
+		return;
+	}
+
 	CCustomOutfit* outfit = actor->GetOutfit();
 	CHelmet* helmet = smart_cast<CHelmet*>(actor->inventory().ItemFromSlot(HELMET_SLOT));
 	float protect = (outfit) ? outfit->GetDefHitTypeProtection(hit_type) : 0.0f;
@@ -740,23 +755,17 @@ void CUIHudStatesWnd::UpdateIndicatorType(CActor* actor, ALife::EInfluenceType t
 	//	float max_power = actor->conditions().GetZoneMaxPower( hit_type );
 	//	protect = protect / max_power; // = 0..1
 
-	if (hit_power < EPS)
-	{
-		m_indik[type]->Show(false);
-		//		m_indik[type]->SetTextureColor( c_white );
-		//		SwitchLA( false, type );
-		actor->conditions().SetZoneDanger(0.0f, type);
-		return;
-	}
-
 	m_indik[type]->Show(true);
 	if (hit_power <= protect)
 	{
 		//		m_indik[type]->SetTextureColor( c_green );
 		//		SwitchLA( false, type );
-		xr_sprintf(str, sizeof(str), "%s%s", texture, "green");
-		texture = str;
-		m_indik[type]->InitTexture(texture);
+		if (m_indik_texture_state[type] != 1)
+		{
+			m_indik_texture_state[type] = 1;
+			xr_sprintf(str, sizeof(str), "%s%s", texture, "green");
+			m_indik[type]->InitTexture(str);
+		}
 		actor->conditions().SetZoneDanger(0.0f, type);
 		return;
 	}
@@ -764,17 +773,23 @@ void CUIHudStatesWnd::UpdateIndicatorType(CActor* actor, ALife::EInfluenceType t
 	{
 		//		m_indik[type]->SetTextureColor( c_yellow );
 		//		SwitchLA( false, type );
-		xr_sprintf(str, sizeof(str), "%s%s", texture, "yellow");
-		texture = str;
-		m_indik[type]->InitTexture(texture);
+		if (m_indik_texture_state[type] != 2)
+		{
+			m_indik_texture_state[type] = 2;
+			xr_sprintf(str, sizeof(str), "%s%s", texture, "yellow");
+			m_indik[type]->InitTexture(str);
+		}
 		actor->conditions().SetZoneDanger(0.0f, type);
 		return;
 	}
 	//	m_indik[type]->SetTextureColor( c_red );
 	//	SwitchLA( true, type );
-	xr_sprintf(str, sizeof(str), "%s%s", texture, "red");
-	texture = str;
-	m_indik[type]->InitTexture(texture);
+	if (m_indik_texture_state[type] != 3)
+	{
+		m_indik_texture_state[type] = 3;
+		xr_sprintf(str, sizeof(str), "%s%s", texture, "red");
+		m_indik[type]->InitTexture(str);
+	}
 	VERIFY(actor->conditions().GetZoneMaxPower(hit_type));
 	actor->conditions().SetZoneDanger((hit_power - protect) / actor->conditions().GetZoneMaxPower(hit_type), type);
 }
@@ -923,4 +938,10 @@ void CUIHudStatesWnd::FakeUpdateIndicatorType(u8 t, float power)
 void CUIHudStatesWnd::EnableFakeIndicators(bool enable)
 {
 	m_fake_indicators_update = enable;
+	// The fake path writes the indicator textures directly, bypassing the
+	// change cache, so drop it when the mode toggles.
+	for (int i = 0; i < it_max; ++i)
+	{
+		m_indik_texture_state[i] = 0;
+	}
 }

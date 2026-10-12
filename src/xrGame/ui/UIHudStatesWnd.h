@@ -73,6 +73,11 @@ private:
 	// ini reads and the shader writes while it is unchanged.
 	shared_str m_last_icon_section;
 
+	// Colour variant currently applied to each zone indicator: 0 = none applied
+	// yet, 1 = green, 2 = yellow, 3 = red. Guards the per-frame InitTexture
+	// re-application below (the triangle texture is a pure function of it).
+	u8 m_indik_texture_state[it_max];
+
 public:
 	CUIHudStatesWnd();
 	virtual ~CUIHudStatesWnd();

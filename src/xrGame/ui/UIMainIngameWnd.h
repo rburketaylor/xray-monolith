@@ -126,6 +126,18 @@ protected:
 	CUIStatic* m_quick_slot_counters[4];      // "counter" children, resolved once at Init
 	shared_str m_last_quick_slot_section[4];  // icon section applied to each quick slot
 	bool m_quick_slot_labels_set;             // quick_use_str_* labels are set once
+
+	// Texture currently applied to each warning icon; the per-frame
+	// InitTexture/SetColorAnimation re-application is skipped while it is
+	// unchanged (the colour state and its animation are 1:1 with the texture).
+	LPCSTR m_ind_bleeding_tex;
+	LPCSTR m_ind_radiation_tex;
+	LPCSTR m_ind_starvation_tex;
+	LPCSTR m_ind_outfit_broken_tex;
+	LPCSTR m_ind_helmet_broken_tex;
+	LPCSTR m_ind_weapon_broken_tex;
+	LPCSTR m_ind_overweight_tex;
+
 	void SetWarningIconColorUI(CUIStatic* s, const u32 cl);
 	void InitFlashingIcons(CUIXml* node);
 	void DestroyFlashingIcons();

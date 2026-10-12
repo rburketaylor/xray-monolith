@@ -77,7 +77,10 @@ const u32 g_clWhite = 0xffffffff;
 #define				MAININGAME_XML				"maingame.xml"
 
 CUIMainIngameWnd::CUIMainIngameWnd()
-	:/*m_pGrenade(NULL),m_pItem(NULL),*/m_pPickUpItem(NULL), m_pLastPickUpItem(NULL), m_pMPChatWnd(NULL), UIArtefactIcon(NULL), m_pMPLogWnd(NULL)
+	:/*m_pGrenade(NULL),m_pItem(NULL),*/m_pPickUpItem(NULL), m_pLastPickUpItem(NULL), m_pMPChatWnd(NULL), UIArtefactIcon(NULL), m_pMPLogWnd(NULL),
+	 m_ind_bleeding_tex(NULL), m_ind_radiation_tex(NULL), m_ind_starvation_tex(NULL),
+	 m_ind_outfit_broken_tex(NULL), m_ind_helmet_broken_tex(NULL), m_ind_weapon_broken_tex(NULL),
+	 m_ind_overweight_tex(NULL)
 {
 	UIZoneMap = xr_new<CUIZoneMap>();
 	for (int i = 0; i < 4; i++)
@@ -688,6 +691,19 @@ void CUIMainIngameWnd::UpdateZoneMap()
 	UIZoneMap->Update();
 }
 
+// The warning-icon texture and its blinking animation are a pure function of the
+// icon's colour state; re-initing the texture and re-running the LALib lookup in
+// SetColorAnimation is only needed when that state actually changes.
+static void set_indicator_texture(CUIStatic* wnd, LPCSTR& applied, LPCSTR texture, LPCSTR anim = NULL, u8 flags = 0)
+{
+	if (applied == texture)
+		return;
+	applied = texture;
+	wnd->InitTexture(texture);
+	if (anim)
+		wnd->SetColorAnimation(anim, flags);
+}
+
 void CUIMainIngameWnd::UpdateMainIndicators()
 {
 	CActor* pActor = smart_cast<CActor*>(Level().CurrentViewEntity());
@@ -713,20 +729,11 @@ void CUIMainIngameWnd::UpdateMainIndicators()
 	{
 		m_ind_bleeding->Show(true);
 		if (bleeding < 0.35f)
-		{
-			m_ind_bleeding->InitTexture("ui_inGame2_circle_bloodloose_green");
-			m_ind_bleeding->SetColorAnimation("ui_slow_blinking_alpha", flags);
-		}
+			set_indicator_texture(m_ind_bleeding, m_ind_bleeding_tex, "ui_inGame2_circle_bloodloose_green", "ui_slow_blinking_alpha", flags);
 		else if (bleeding < 0.7f)
-		{
-			m_ind_bleeding->InitTexture("ui_inGame2_circle_bloodloose_yellow");
-			m_ind_bleeding->SetColorAnimation("ui_medium_blinking_alpha", flags);
-		}
+			set_indicator_texture(m_ind_bleeding, m_ind_bleeding_tex, "ui_inGame2_circle_bloodloose_yellow", "ui_medium_blinking_alpha", flags);
 		else
-		{
-			m_ind_bleeding->InitTexture("ui_inGame2_circle_bloodloose_red");
-			m_ind_bleeding->SetColorAnimation("ui_fast_blinking_alpha", flags);
-		}
+			set_indicator_texture(m_ind_bleeding, m_ind_bleeding_tex, "ui_inGame2_circle_bloodloose_red", "ui_fast_blinking_alpha", flags);
 	}
 	// Radiation icon
 	float radiation = pActor->conditions().GetRadiation();
@@ -739,20 +746,11 @@ void CUIMainIngameWnd::UpdateMainIndicators()
 	{
 		m_ind_radiation->Show(true);
 		if (radiation < 0.35f)
-		{
-			m_ind_radiation->InitTexture("ui_inGame2_circle_radiation_green");
-			m_ind_radiation->SetColorAnimation("ui_slow_blinking_alpha", flags);
-		}
+			set_indicator_texture(m_ind_radiation, m_ind_radiation_tex, "ui_inGame2_circle_radiation_green", "ui_slow_blinking_alpha", flags);
 		else if (radiation < 0.7f)
-		{
-			m_ind_radiation->InitTexture("ui_inGame2_circle_radiation_yellow");
-			m_ind_radiation->SetColorAnimation("ui_medium_blinking_alpha", flags);
-		}
+			set_indicator_texture(m_ind_radiation, m_ind_radiation_tex, "ui_inGame2_circle_radiation_yellow", "ui_medium_blinking_alpha", flags);
 		else
-		{
-			m_ind_radiation->InitTexture("ui_inGame2_circle_radiation_red");
-			m_ind_radiation->SetColorAnimation("ui_fast_blinking_alpha", flags);
-		}
+			set_indicator_texture(m_ind_radiation, m_ind_radiation_tex, "ui_inGame2_circle_radiation_red", "ui_fast_blinking_alpha", flags);
 	}
 
 	// Satiety icon
@@ -767,11 +765,11 @@ void CUIMainIngameWnd::UpdateMainIndicators()
 	{
 		m_ind_starvation->Show(true);
 		if (satiety_koef > 0.0f)
-			m_ind_starvation->InitTexture("ui_inGame2_circle_hunger_green");
+			set_indicator_texture(m_ind_starvation, m_ind_starvation_tex, "ui_inGame2_circle_hunger_green");
 		else if (satiety_koef > -0.5f)
-			m_ind_starvation->InitTexture("ui_inGame2_circle_hunger_yellow");
+			set_indicator_texture(m_ind_starvation, m_ind_starvation_tex, "ui_inGame2_circle_hunger_yellow");
 		else
-			m_ind_starvation->InitTexture("ui_inGame2_circle_hunger_red");
+			set_indicator_texture(m_ind_starvation, m_ind_starvation_tex, "ui_inGame2_circle_hunger_red");
 	}
 	// Armor broken icon
 	CCustomOutfit* outfit = smart_cast<CCustomOutfit*>(pActor->inventory().ItemFromSlot(OUTFIT_SLOT));
@@ -783,11 +781,11 @@ void CUIMainIngameWnd::UpdateMainIndicators()
 		{
 			m_ind_outfit_broken->Show(true);
 			if (condition > 0.5f)
-				m_ind_outfit_broken->InitTexture("ui_inGame2_circle_Armorbroken_green");
+				set_indicator_texture(m_ind_outfit_broken, m_ind_outfit_broken_tex, "ui_inGame2_circle_Armorbroken_green");
 			else if (condition > 0.25f)
-				m_ind_outfit_broken->InitTexture("ui_inGame2_circle_Armorbroken_yellow");
+				set_indicator_texture(m_ind_outfit_broken, m_ind_outfit_broken_tex, "ui_inGame2_circle_Armorbroken_yellow");
 			else
-				m_ind_outfit_broken->InitTexture("ui_inGame2_circle_Armorbroken_red");
+				set_indicator_texture(m_ind_outfit_broken, m_ind_outfit_broken_tex, "ui_inGame2_circle_Armorbroken_red");
 		}
 	}
 	// Helmet broken icon
@@ -800,11 +798,11 @@ void CUIMainIngameWnd::UpdateMainIndicators()
 		{
 			m_ind_helmet_broken->Show(true);
 			if (condition > 0.5f)
-				m_ind_helmet_broken->InitTexture("ui_inGame2_circle_Helmetbroken_green");
+				set_indicator_texture(m_ind_helmet_broken, m_ind_helmet_broken_tex, "ui_inGame2_circle_Helmetbroken_green");
 			else if (condition > 0.25f)
-				m_ind_helmet_broken->InitTexture("ui_inGame2_circle_Helmetbroken_yellow");
+				set_indicator_texture(m_ind_helmet_broken, m_ind_helmet_broken_tex, "ui_inGame2_circle_Helmetbroken_yellow");
 			else
-				m_ind_helmet_broken->InitTexture("ui_inGame2_circle_Helmetbroken_red");
+				set_indicator_texture(m_ind_helmet_broken, m_ind_helmet_broken_tex, "ui_inGame2_circle_Helmetbroken_red");
 		}
 	}
 	// Weapon broken icon
@@ -822,11 +820,11 @@ void CUIMainIngameWnd::UpdateMainIndicators()
 			{
 				m_ind_weapon_broken->Show(true);
 				if (condition > (start_misf_cond + end_misf_cond) / 2)
-					m_ind_weapon_broken->InitTexture("ui_inGame2_circle_Gunbroken_green");
+					set_indicator_texture(m_ind_weapon_broken, m_ind_weapon_broken_tex, "ui_inGame2_circle_Gunbroken_green");
 				else if (condition > end_misf_cond)
-					m_ind_weapon_broken->InitTexture("ui_inGame2_circle_Gunbroken_yellow");
+					set_indicator_texture(m_ind_weapon_broken, m_ind_weapon_broken_tex, "ui_inGame2_circle_Gunbroken_yellow");
 				else
-					m_ind_weapon_broken->InitTexture("ui_inGame2_circle_Gunbroken_red");
+					set_indicator_texture(m_ind_weapon_broken, m_ind_weapon_broken_tex, "ui_inGame2_circle_Gunbroken_red");
 			}
 		}
 	}
@@ -838,11 +836,11 @@ void CUIMainIngameWnd::UpdateMainIndicators()
 	{
 		m_ind_overweight->Show(true);
 		if (cur_weight > max_weight)
-			m_ind_overweight->InitTexture("ui_inGame2_circle_Overweight_red");
+			set_indicator_texture(m_ind_overweight, m_ind_overweight_tex, "ui_inGame2_circle_Overweight_red");
 			//else if(cur_weight>max_weight-10.0f)
 			//	m_ind_overweight->InitTexture("ui_inGame2_circle_Overweight_yellow");
 		else
-			m_ind_overweight->InitTexture("ui_inGame2_circle_Overweight_yellow");
+			set_indicator_texture(m_ind_overweight, m_ind_overweight_tex, "ui_inGame2_circle_Overweight_yellow");
 	}
 }
 
