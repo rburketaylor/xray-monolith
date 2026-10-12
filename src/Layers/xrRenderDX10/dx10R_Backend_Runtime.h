@@ -503,21 +503,24 @@ ICF void CBackend::set_VS(SVS* _vs)
 	set_VS(_vs->vs, _vs->cName.c_str());
 }
 
-IC bool CBackend::CBuffersNeedUpdate(ref_cbuffer buf1[MaxCBuffers], ref_cbuffer buf2[MaxCBuffers], u32& uiMin,
-                                     u32& uiMax)
+IC bool CBackend::UpdateCBuffers(ref_cbuffer buf[MaxCBuffers], dx10ConstantBuffer* pNew[MaxCBuffers], u32& uiMin,
+                                 u32& uiMax)
 {
+	//	Assign only the slots whose buffer really changed: the m_a* member keeps the
+	//	ownership, an identical table costs no refcount operation at all.
 	bool bRes = false;
-	int i = 0;
-	while ((i < MaxCBuffers) && (buf1[i] == buf2[i]))
-		++i;
-
-	uiMin = i;
-
-	for (; i < MaxCBuffers; ++i)
+	uiMin = 0;
+	uiMax = 0;
+	for (u32 i = 0; i < MaxCBuffers; ++i)
 	{
-		if (buf1[i] != buf2[i])
+		if (buf[i] != pNew[i])
 		{
-			bRes = true;
+			buf[i]._set(pNew[i]);
+			if (!bRes)
+			{
+				uiMin = i;
+				bRes = true;
+			}
 			uiMax = i;
 		}
 	}
@@ -546,37 +549,17 @@ IC void CBackend::set_Constants(R_constant_table* C)
 
 	//	Setup constant tables
 	{
-		static ref_cbuffer aPixelConstants[MaxCBuffers];
-		static ref_cbuffer aVertexConstants[MaxCBuffers];
-		static ref_cbuffer aGeometryConstants[MaxCBuffers];
+		//	Raw view of the buffers the new table wants bound. The m_a* members stay
+		//	the owners; a slot is reassigned only when its buffer actually changes.
+		dx10ConstantBuffer* pPixelConstants[MaxCBuffers] = { 0 };
+		dx10ConstantBuffer* pVertexConstants[MaxCBuffers] = { 0 };
+		dx10ConstantBuffer* pGeometryConstants[MaxCBuffers] = { 0 };
 #ifdef USE_DX11
-		static ref_cbuffer aHullConstants[MaxCBuffers];
-		static ref_cbuffer aDomainConstants[MaxCBuffers];
-		static ref_cbuffer aComputeConstants[MaxCBuffers];
+		dx10ConstantBuffer* pHullConstants[MaxCBuffers] = { 0 };
+		dx10ConstantBuffer* pDomainConstants[MaxCBuffers] = { 0 };
+		dx10ConstantBuffer* pComputeConstants[MaxCBuffers] = { 0 };
 #endif
 
-		for (int i = 0; i < MaxCBuffers; ++i)
-		{
-			aPixelConstants[i] = m_aPixelConstants[i];
-			aVertexConstants[i] = m_aVertexConstants[i];
-			aGeometryConstants[i] = m_aGeometryConstants[i];
-
-#ifdef USE_DX11
-			aHullConstants[i] = m_aHullConstants[i];
-			aDomainConstants[i] = m_aDomainConstants[i];
-			aComputeConstants[i] = m_aComputeConstants[i];
-#endif
-
-			m_aPixelConstants[i] = 0;
-			m_aVertexConstants[i] = 0;
-			m_aGeometryConstants[i] = 0;
-
-#ifdef USE_DX11
-			m_aHullConstants[i] = 0;
-			m_aDomainConstants[i] = 0;
-			m_aComputeConstants[i] = 0;
-#endif
-		}
 		R_constant_table::cb_table::iterator it = C->m_CBTable.begin();
 		R_constant_table::cb_table::iterator end = C->m_CBTable.end();
 		for (; it != end; ++it)
@@ -587,33 +570,33 @@ IC void CBackend::set_Constants(R_constant_table* C)
 			if ((uiBufferIndex & CB_BufferTypeMask) == CB_BufferPixelShader)
 			{
 				VERIFY((uiBufferIndex&CB_BufferIndexMask)<MaxCBuffers);
-				m_aPixelConstants[uiBufferIndex & CB_BufferIndexMask] = it->second;
+				pPixelConstants[uiBufferIndex & CB_BufferIndexMask] = it->second._get();
 			}
 			else if ((uiBufferIndex & CB_BufferTypeMask) == CB_BufferVertexShader)
 			{
 				VERIFY((uiBufferIndex&CB_BufferIndexMask)<MaxCBuffers);
-				m_aVertexConstants[uiBufferIndex & CB_BufferIndexMask] = it->second;
+				pVertexConstants[uiBufferIndex & CB_BufferIndexMask] = it->second._get();
 			}
 			else if ((uiBufferIndex & CB_BufferTypeMask) == CB_BufferGeometryShader)
 			{
 				VERIFY((uiBufferIndex&CB_BufferIndexMask)<MaxCBuffers);
-				m_aGeometryConstants[uiBufferIndex & CB_BufferIndexMask] = it->second;
+				pGeometryConstants[uiBufferIndex & CB_BufferIndexMask] = it->second._get();
 			}
 #ifdef USE_DX11
 			else if ( (uiBufferIndex&CB_BufferTypeMask) == CB_BufferHullShader)
 			{
 				VERIFY((uiBufferIndex&CB_BufferIndexMask)<MaxCBuffers);
-				m_aHullConstants[uiBufferIndex&CB_BufferIndexMask] = it->second;
+				pHullConstants[uiBufferIndex&CB_BufferIndexMask] = it->second._get();
 			}
 			else if ( (uiBufferIndex&CB_BufferTypeMask) == CB_BufferDomainShader)
 			{
 				VERIFY((uiBufferIndex&CB_BufferIndexMask)<MaxCBuffers);
-				m_aDomainConstants[uiBufferIndex&CB_BufferIndexMask] = it->second;
+				pDomainConstants[uiBufferIndex&CB_BufferIndexMask] = it->second._get();
 			}
 			else if ( (uiBufferIndex&CB_BufferTypeMask) == CB_BufferComputeShader)
 			{
 				VERIFY((uiBufferIndex&CB_BufferIndexMask)<MaxCBuffers);
-				m_aComputeConstants[uiBufferIndex&CB_BufferIndexMask] = it->second;
+				pComputeConstants[uiBufferIndex&CB_BufferIndexMask] = it->second._get();
 			}
 #endif
 			else
@@ -625,7 +608,7 @@ IC void CBackend::set_Constants(R_constant_table* C)
 		u32 uiMin;
 		u32 uiMax;
 
-		if (CBuffersNeedUpdate(m_aPixelConstants, aPixelConstants, uiMin, uiMax))
+		if (UpdateCBuffers(m_aPixelConstants, pPixelConstants, uiMin, uiMax))
 		{
 			++uiMax;
 
@@ -641,7 +624,7 @@ IC void CBackend::set_Constants(R_constant_table* C)
 		}
 
 
-		if (CBuffersNeedUpdate(m_aVertexConstants, aVertexConstants, uiMin, uiMax))
+		if (UpdateCBuffers(m_aVertexConstants, pVertexConstants, uiMin, uiMax))
 		{
 			++uiMax;
 
@@ -656,7 +639,7 @@ IC void CBackend::set_Constants(R_constant_table* C)
 		}
 
 
-		if (CBuffersNeedUpdate(m_aGeometryConstants, aGeometryConstants, uiMin, uiMax))
+		if (UpdateCBuffers(m_aGeometryConstants, pGeometryConstants, uiMin, uiMax))
 		{
 			++uiMax;
 
@@ -671,7 +654,7 @@ IC void CBackend::set_Constants(R_constant_table* C)
 		}
 
 #ifdef USE_DX11
-		if (CBuffersNeedUpdate(m_aHullConstants, aHullConstants, uiMin, uiMax))
+		if (UpdateCBuffers(m_aHullConstants, pHullConstants, uiMin, uiMax))
 		{
 			++uiMax;
 
@@ -685,7 +668,7 @@ IC void CBackend::set_Constants(R_constant_table* C)
 			HW.pContext->HSSetConstantBuffers(uiMin, uiMax-uiMin, &tempBuffer[uiMin]);
 		}
 
-		if (CBuffersNeedUpdate(m_aDomainConstants, aDomainConstants, uiMin, uiMax))
+		if (UpdateCBuffers(m_aDomainConstants, pDomainConstants, uiMin, uiMax))
 		{
 			++uiMax;
 
@@ -699,7 +682,7 @@ IC void CBackend::set_Constants(R_constant_table* C)
 			HW.pContext->DSSetConstantBuffers(uiMin, uiMax-uiMin, &tempBuffer[uiMin]);
 		}
 
-		if (CBuffersNeedUpdate(m_aComputeConstants, aComputeConstants, uiMin, uiMax))
+		if (UpdateCBuffers(m_aComputeConstants, pComputeConstants, uiMin, uiMax))
 		{
 			++uiMax;
 

@@ -513,7 +513,7 @@ private:
 	void ApplyVertexLayout();
 	void ApplyRTandZB();
 	void ApplyPrimitieTopology(D3D_PRIMITIVE_TOPOLOGY Topology);
-	bool CBuffersNeedUpdate(ref_cbuffer buf1[MaxCBuffers], ref_cbuffer buf2[MaxCBuffers], u32& uiMin, u32& uiMax);
+	bool UpdateCBuffers(ref_cbuffer buf[MaxCBuffers], dx10ConstantBuffer* pNew[MaxCBuffers], u32& uiMin, u32& uiMax);
 
 private:
 	ID3DBlob* m_pInputSignature;
