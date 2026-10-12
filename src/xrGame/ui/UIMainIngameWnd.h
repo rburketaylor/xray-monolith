@@ -123,6 +123,9 @@ public:
 
 protected:
 	void UpdateQuickSlots();
+	CUIStatic* m_quick_slot_counters[4];      // "counter" children, resolved once at Init
+	shared_str m_last_quick_slot_section[4];  // icon section applied to each quick slot
+	bool m_quick_slot_labels_set;             // quick_use_str_* labels are set once
 	void SetWarningIconColorUI(CUIStatic* s, const u32 cl);
 	void InitFlashingIcons(CUIXml* node);
 	void DestroyFlashingIcons();

@@ -80,6 +80,11 @@ CUIMainIngameWnd::CUIMainIngameWnd()
 	:/*m_pGrenade(NULL),m_pItem(NULL),*/m_pPickUpItem(NULL), m_pLastPickUpItem(NULL), m_pMPChatWnd(NULL), UIArtefactIcon(NULL), m_pMPLogWnd(NULL)
 {
 	UIZoneMap = xr_new<CUIZoneMap>();
+	for (int i = 0; i < 4; i++)
+	{
+		m_quick_slot_counters[i] = NULL;
+	}
+	m_quick_slot_labels_set = false;
 }
 
 #include "UIProgressShape.h"
@@ -248,6 +253,7 @@ void CUIMainIngameWnd::Init()
 	AttachChild(m_ui_hud_states);
 	m_ui_hud_states->InitFromXml(uiXml, "hud_states");
 
+	m_quick_slot_labels_set = false; // the label windows are recreated below
 	for (int i = 0; i < 4; i++)
 	{
 		m_quick_slots_icons.push_back(xr_new<CUIStatic>());
@@ -257,7 +263,8 @@ void CUIMainIngameWnd::Init()
 		xr_sprintf(path, "quick_slot%d", i);
 		CUIXmlInit::InitStatic(uiXml, path, 0, m_quick_slots_icons.back());
 		xr_sprintf(path, "%s:counter", path);
-		UIHelper::CreateStatic(uiXml, path, m_quick_slots_icons.back());
+		m_quick_slot_counters[i] = UIHelper::CreateStatic(uiXml, path, m_quick_slots_icons.back());
+		m_last_quick_slot_section[i] = NULL;
 	}
 	m_QuickSlotText1 = UIHelper::CreateTextWnd(uiXml, "quick_slot0_text", this);
 	m_QuickSlotText2 = UIHelper::CreateTextWnd(uiXml, "quick_slot1_text", this);
@@ -841,31 +848,37 @@ void CUIMainIngameWnd::UpdateMainIndicators()
 
 void CUIMainIngameWnd::UpdateQuickSlots()
 {
-	string32 tmp;
-	LPCSTR str = CStringTable().translate("quick_use_str_1").c_str();
-	strncpy_s(tmp, sizeof(tmp), str, 3);
-	if (tmp[2] == ',')
-		tmp[1] = '\0';
-	m_QuickSlotText1->SetTextST(tmp);
+	// The quick_use_str_* labels come from the (static) string table; build and
+	// set them once instead of translating four keys on every call.
+	if (!m_quick_slot_labels_set)
+	{
+		m_quick_slot_labels_set = true;
 
-	str = CStringTable().translate("quick_use_str_2").c_str();
-	strncpy_s(tmp, sizeof(tmp), str, 3);
-	if (tmp[2] == ',')
-		tmp[1] = '\0';
-	m_QuickSlotText2->SetTextST(tmp);
+		string32 tmp;
+		LPCSTR str = CStringTable().translate("quick_use_str_1").c_str();
+		strncpy_s(tmp, sizeof(tmp), str, 3);
+		if (tmp[2] == ',')
+			tmp[1] = '\0';
+		m_QuickSlotText1->SetTextST(tmp);
 
-	str = CStringTable().translate("quick_use_str_3").c_str();
-	strncpy_s(tmp, sizeof(tmp), str, 3);
-	if (tmp[2] == ',')
-		tmp[1] = '\0';
-	m_QuickSlotText3->SetTextST(tmp);
+		str = CStringTable().translate("quick_use_str_2").c_str();
+		strncpy_s(tmp, sizeof(tmp), str, 3);
+		if (tmp[2] == ',')
+			tmp[1] = '\0';
+		m_QuickSlotText2->SetTextST(tmp);
 
-	str = CStringTable().translate("quick_use_str_4").c_str();
-	strncpy_s(tmp, sizeof(tmp), str, 3);
-	if (tmp[2] == ',')
-		tmp[1] = '\0';
-	m_QuickSlotText4->SetTextST(tmp);
+		str = CStringTable().translate("quick_use_str_3").c_str();
+		strncpy_s(tmp, sizeof(tmp), str, 3);
+		if (tmp[2] == ',')
+			tmp[1] = '\0';
+		m_QuickSlotText3->SetTextST(tmp);
 
+		str = CStringTable().translate("quick_use_str_4").c_str();
+		strncpy_s(tmp, sizeof(tmp), str, 3);
+		if (tmp[2] == ',')
+			tmp[1] = '\0';
+		m_QuickSlotText4->SetTextST(tmp);
+	}
 
 	CActor* pActor = smart_cast<CActor*>(Level().CurrentViewEntity());
 	if (!pActor)
@@ -873,7 +886,7 @@ void CUIMainIngameWnd::UpdateQuickSlots()
 
 	for (u8 i = 0; i < 4; i++)
 	{
-		CUIStatic* wnd = smart_cast<CUIStatic*>(m_quick_slots_icons[i]->FindChild("counter"));
+		CUIStatic* wnd = m_quick_slot_counters[i];
 		if (wnd)
 		{
 			shared_str item_name = g_quick_use_slots[i];
@@ -887,23 +900,31 @@ void CUIMainIngameWnd::UpdateQuickSlots()
 
 				CUIStatic* main_slot = m_quick_slots_icons[i];
 
-				if (pSettings->line_exist(item_name.c_str(), "icons_texture"))
+				// The slot icon (shader and texture rect) only changes with the
+				// section; the count text above must keep updating every call.
+				if (m_last_quick_slot_section[i] != item_name)
 				{
-					LPCSTR icons_texture = pSettings->r_string(item_name.c_str(), "icons_texture");
-					main_slot->SetShader(InventoryUtilities::GetCustomIconTextureShader(icons_texture));
-				}
-				else
-					main_slot->SetShader(InventoryUtilities::GetEquipmentIconsShader());
+					m_last_quick_slot_section[i] = item_name;
 
-				Frect texture_rect;
-				texture_rect.x1 = pSettings->r_float(item_name, "inv_grid_x") * INV_GRID_WIDTH;
-				texture_rect.y1 = pSettings->r_float(item_name, "inv_grid_y") * INV_GRID_HEIGHT;
-				texture_rect.x2 = pSettings->r_float(item_name, "inv_grid_width") * INV_GRID_WIDTH;
-				texture_rect.y2 = pSettings->r_float(item_name, "inv_grid_height") * INV_GRID_HEIGHT;
-				texture_rect.rb.add(texture_rect.lt);
-				main_slot->SetTextureRect(texture_rect);
-				main_slot->TextureOn();
-				main_slot->SetStretchTexture(true);
+					if (pSettings->line_exist(item_name.c_str(), "icons_texture"))
+					{
+						LPCSTR icons_texture = pSettings->r_string(item_name.c_str(), "icons_texture");
+						main_slot->SetShader(InventoryUtilities::GetCustomIconTextureShader(icons_texture));
+					}
+					else
+						main_slot->SetShader(InventoryUtilities::GetEquipmentIconsShader());
+
+					Frect texture_rect;
+					texture_rect.x1 = pSettings->r_float(item_name, "inv_grid_x") * INV_GRID_WIDTH;
+					texture_rect.y1 = pSettings->r_float(item_name, "inv_grid_y") * INV_GRID_HEIGHT;
+					texture_rect.x2 = pSettings->r_float(item_name, "inv_grid_width") * INV_GRID_WIDTH;
+					texture_rect.y2 = pSettings->r_float(item_name, "inv_grid_height") * INV_GRID_HEIGHT;
+					texture_rect.rb.add(texture_rect.lt);
+					main_slot->SetTextureRect(texture_rect);
+					main_slot->TextureOn();
+					main_slot->SetStretchTexture(true);
+				}
+
 				if (!count)
 				{
 					wnd->SetTextureColor(color_rgba(255, 255, 255, 0));
