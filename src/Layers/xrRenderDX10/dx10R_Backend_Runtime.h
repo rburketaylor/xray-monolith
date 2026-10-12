@@ -57,6 +57,7 @@ ICF void CBackend::set_Format(SDeclaration* _decl)
 		stat.decl		++;
 #endif
 		decl = _decl;
+		UnmapInputLayout();
 	}
 }
 
@@ -163,6 +164,7 @@ ICF void CBackend::set_VS(ID3DVertexShader* _vs, LPCSTR _n)
 		PGO(Msg("PGO:Vshader:%x",_vs));
 		stat.vs ++;
 		vs = _vs;
+		UnmapInputLayout();
 #ifdef USE_DX11
 		HW.pContext->VSSetShader(vs, 0, 0);
 #else
@@ -457,12 +459,24 @@ ICF void CBackend::set_CullMode(u32 _mode)
 	//if (cull_mode		!= _mode)		{ cull_mode = _mode;			CHK_DX(HW.pDevice->SetRenderState	( D3DRS_CULLMODE,			_mode				)); }
 }
 
+ICF void CBackend::UnmapInputLayout()
+{
+	m_pInputLayoutDecl = NULL;
+	m_pInputLayoutSignature = NULL;
+}
+
 IC void CBackend::ApplyVertexLayout()
 {
 	PROF_EVENT("CBackend::ApplyVertexLayout");
 	VERIFY(vs);
 	VERIFY(decl);
 	VERIFY(m_pInputSignature);
+
+	//	The layout only depends on the declaration and the input signature; while
+	//	both are unchanged the one resolved on the previous call is still the
+	//	entry the map holds, so the xr_map lookup can be skipped.
+	if (m_pInputLayoutDecl == decl && m_pInputLayoutSignature == m_pInputSignature)
+		return;
 
 	xr_map<ID3DBlob*, ID3DInputLayout*>::iterator it;
 
@@ -483,6 +497,9 @@ IC void CBackend::ApplyVertexLayout()
 		it = decl->vs_to_layout.insert(
 			std::pair<ID3DBlob*, ID3DInputLayout*>(m_pInputSignature, pLayout)).first;
 	}
+
+	m_pInputLayoutDecl = decl;
+	m_pInputLayoutSignature = m_pInputSignature;
 
 	if (m_pInputLayout != it->second)
 	{

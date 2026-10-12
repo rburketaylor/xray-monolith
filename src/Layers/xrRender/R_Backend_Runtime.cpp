@@ -112,6 +112,8 @@ void CBackend::Invalidate()
 
 #if defined(USE_DX10) || defined(USE_DX11)
 	m_pInputLayout = NULL;
+	m_pInputLayoutDecl = NULL;
+	m_pInputLayoutSignature = NULL;
 	m_PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 	m_bChangedRTorZB = false;
 	m_pInputSignature = NULL;

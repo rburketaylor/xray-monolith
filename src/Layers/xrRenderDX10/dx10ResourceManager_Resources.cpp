@@ -241,6 +241,7 @@ void CResourceManager::_DeleteVS(const SVS* vs)
 	{
 		m_vs.erase(I);
 		xr_vector<SDeclaration*>::iterator iDecl;
+		bool bLayoutReleased = false;
 		for (iDecl = v_declarations.begin(); iDecl != v_declarations.end(); ++iDecl)
 		{
 			xr_map<ID3DBlob*, ID3DInputLayout*>::iterator iLayout;
@@ -250,8 +251,14 @@ void CResourceManager::_DeleteVS(const SVS* vs)
 				//	Release vertex layout
 				_RELEASE(iLayout->second);
 				(*iDecl)->vs_to_layout.erase(iLayout);
+				//	The backend may have this layout cached as the resolved one
+				bLayoutReleased = true;
 			}
 		}
+		//	Otherwise a live VS that shares the interned signature would draw
+		//	with the released layout
+		if (bLayoutReleased)
+			RCache.UnmapInputLayout();
 		return;
 	}
 	Msg("! ERROR: Failed to find compiled vertex-shader '%s'", *vs->cName);

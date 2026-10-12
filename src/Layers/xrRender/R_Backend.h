@@ -362,6 +362,13 @@ public:
 	ICF void set_Indices(ID3DIndexBuffer* _ib);
 	ICF void set_Geometry(SGeometry* _geom);
 	ICF void set_Geometry(ref_geom& _geom) { set_Geometry(&*_geom); }
+
+#if defined(USE_DX10) || defined(USE_DX11)
+	//	Drops the cached (declaration, input signature) -> input layout resolution.
+	//	The resource manager calls this after releasing the layouts of a deleted VS.
+	ICF void UnmapInputLayout();
+#endif
+
 	IC void set_Stencil(u32 _enable, u32 _func = D3DCMP_ALWAYS, u32 _ref = 0x00, u32 _mask = 0x00,
 	                    u32 _writemask = 0x00, u32 _fail = D3DSTENCILOP_KEEP, u32 _pass = D3DSTENCILOP_KEEP,
 	                    u32 _zfail = D3DSTENCILOP_KEEP);
@@ -517,6 +524,12 @@ private:
 
 private:
 	ID3DBlob* m_pInputSignature;
+
+	//	Resolved input layout and the pair it was resolved for: while the
+	//	declaration and the input signature are unchanged the xr_map lookup in
+	//	decl->vs_to_layout is skipped.
+	SDeclaration* m_pInputLayoutDecl;
+	ID3DBlob* m_pInputLayoutSignature;
 
 	bool m_bChangedRTorZB;
 #endif	//	USE_DX10
