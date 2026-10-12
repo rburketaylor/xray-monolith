@@ -411,6 +411,9 @@
     <ClInclude Include="R_Backend_LOD.h">
       <Filter>Refactored\Backend</Filter>
     </ClInclude>
+    <ClInclude Include="R_Backend_light.h">
+      <Filter>Refactored\Backend</Filter>
+    </ClInclude>
     <ClInclude Include="..\xrRender\R_Backend_Runtime.h">
       <Filter>Refactored\Backend</Filter>
     </ClInclude>

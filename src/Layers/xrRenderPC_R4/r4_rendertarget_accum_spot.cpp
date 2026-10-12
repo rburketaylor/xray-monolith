@@ -35,6 +35,10 @@ void CRenderTarget::accum_spot(light* L)
 		}
 	}
 
+	//	Light constants are resolved lazily from the table in use and dropped
+	//	whenever another constant table is set
+	R_light_constants& lights = RCache.lights;
+
 	BOOL bIntersect = FALSE; //enable_scissor(L);
 	{
 		// setup xform
@@ -160,18 +164,27 @@ void CRenderTarget::accum_spot(light* L)
 		// Constants
 		float att_R = L->range * .95f;
 		float att_factor = 1.f / (att_R * att_R);
-		RCache.set_c("Ldynamic_pos", L_pos.x, L_pos.y, L_pos.z, att_factor);
-		RCache.set_c("Ldynamic_color", L_clr.x, L_clr.y, L_clr.z, L_spec);
-		RCache.set_c("m_texgen", m_Texgen);
-		RCache.set_c("m_texgen_J", m_Texgen_J);
-		RCache.set_c("m_shadow", m_Shadow);
-		RCache.set_ca("m_lmap", 0, m_Lmap._11, m_Lmap._21, m_Lmap._31, m_Lmap._41);
-		RCache.set_ca("m_lmap", 1, m_Lmap._12, m_Lmap._22, m_Lmap._32, m_Lmap._42);
+		// resolve the handles once per bound table instead of by name per light
+		if (!lights.c_Ldynamic_pos) lights.c_Ldynamic_pos = RCache.get_c("Ldynamic_pos");
+		if (!lights.c_Ldynamic_color) lights.c_Ldynamic_color = RCache.get_c("Ldynamic_color");
+		if (!lights.c_m_texgen) lights.c_m_texgen = RCache.get_c("m_texgen");
+		if (!lights.c_m_texgen_J) lights.c_m_texgen_J = RCache.get_c("m_texgen_J");
+		if (!lights.c_m_shadow) lights.c_m_shadow = RCache.get_c("m_shadow");
+		if (!lights.c_m_lmap) lights.c_m_lmap = RCache.get_c("m_lmap");
+		if (!lights.c_sss_id) lights.c_sss_id = RCache.get_c("sss_id");
+
+		RCache.set_c(lights.c_Ldynamic_pos, L_pos.x, L_pos.y, L_pos.z, att_factor);
+		RCache.set_c(lights.c_Ldynamic_color, L_clr.x, L_clr.y, L_clr.z, L_spec);
+		RCache.set_c(lights.c_m_texgen, m_Texgen);
+		RCache.set_c(lights.c_m_texgen_J, m_Texgen_J);
+		RCache.set_c(lights.c_m_shadow, m_Shadow);
+		RCache.set_ca(lights.c_m_lmap, 0, m_Lmap._11, m_Lmap._21, m_Lmap._31, m_Lmap._41);
+		RCache.set_ca(lights.c_m_lmap, 1, m_Lmap._12, m_Lmap._22, m_Lmap._32, m_Lmap._42);
 
 		if (!Device.m_SecondViewport.IsSVPFrame())
-			RCache.set_c("sss_id", L->sss_id);
+			RCache.set_c(lights.c_sss_id, L->sss_id);
 		else
-			RCache.set_c("sss_id", -1);
+			RCache.set_c(lights.c_sss_id, -1);
 
 		// Fetch4 : enable
 		//		if (RImplementation.o.HW_smap_FETCH4)	{
@@ -231,8 +244,10 @@ void CRenderTarget::accum_spot(light* L)
 		else
 			u_setrt(rt_Accumulator,NULL,NULL, rt_MSAADepth->pZRT);
 		RCache.set_Element(s_accum_mask->E[SE_MASK_ACCUM_VOL]);
-		RCache.set_c("m_texgen", m_Texgen);
-		RCache.set_c("m_texgen_J", m_Texgen_J);
+		if (!lights.c_m_texgen) lights.c_m_texgen = RCache.get_c("m_texgen");
+		if (!lights.c_m_texgen_J) lights.c_m_texgen_J = RCache.get_c("m_texgen_J");
+		RCache.set_c(lights.c_m_texgen, m_Texgen);
+		RCache.set_c(lights.c_m_texgen_J, m_Texgen_J);
 		if (!RImplementation.o.dx10_msaa)
 		{
 			RCache.set_Stencil(TRUE, D3DCMP_EQUAL, dwLightMarkerID, 0xff, 0x00);
@@ -371,12 +386,19 @@ void CRenderTarget::accum_volumetric_lv(light* L)
 	RCache.set_Stencil(FALSE);
 
 	RCache.set_ColorWriteEnable();
-	//Set constants
-	RCache.set_c("Ldynamic_pos", L_pos.x, L_pos.y, L_pos.z, att_factor);
-	RCache.set_c("Ldynamic_dir", L_dir.x, L_dir.y, L_dir.z, -cos(L->cone * 0.5));
-	RCache.set_c("Ldynamic_color", L_clr.x, L_clr.y, L_clr.z, L->get_LOD());
+	//Set constants: resolve the handles once per bound table instead of by name
+	//on every light
+	R_light_constants& lights = RCache.lights;
+	if (!lights.c_Ldynamic_pos) lights.c_Ldynamic_pos = RCache.get_c("Ldynamic_pos");
+	if (!lights.c_Ldynamic_dir) lights.c_Ldynamic_dir = RCache.get_c("Ldynamic_dir");
+	if (!lights.c_Ldynamic_color) lights.c_Ldynamic_color = RCache.get_c("Ldynamic_color");
+	if (!lights.c_m_shadow) lights.c_m_shadow = RCache.get_c("m_shadow");
 
-	RCache.set_c("m_shadow", m_Shadow);
+	RCache.set_c(lights.c_Ldynamic_pos, L_pos.x, L_pos.y, L_pos.z, att_factor);
+	RCache.set_c(lights.c_Ldynamic_dir, L_dir.x, L_dir.y, L_dir.z, -cos(L->cone * 0.5));
+	RCache.set_c(lights.c_Ldynamic_color, L_clr.x, L_clr.y, L_clr.z, L->get_LOD());
+
+	RCache.set_c(lights.c_m_shadow, m_Shadow);
 
 	//Render, no IB/VB - geometry in VS
 	draw_volume(L);
@@ -655,20 +677,30 @@ void CRenderTarget::accum_volumetric(light* L)
 		// Constants
 		float att_R = L->m_volumetric_distance * L->range * .95f;
 		float att_factor = 1.f / (att_R * att_R);
-		RCache.set_c("Ldynamic_pos", L_pos.x, L_pos.y, L_pos.z, att_factor);
-		RCache.set_c("Ldynamic_color", L_clr.x, L_clr.y, L_clr.z, L_spec);
+		// resolve the handles once per bound table instead of by name per light
+		R_light_constants& lights = RCache.lights;
+		if (!lights.c_Ldynamic_pos) lights.c_Ldynamic_pos = RCache.get_c("Ldynamic_pos");
+		if (!lights.c_Ldynamic_color) lights.c_Ldynamic_color = RCache.get_c("Ldynamic_color");
+		if (!lights.c_m_shadow) lights.c_m_shadow = RCache.get_c("m_shadow");
+		if (!lights.c_m_lmap) lights.c_m_lmap = RCache.get_c("m_lmap");
+		if (!lights.c_vMinBounds) lights.c_vMinBounds = RCache.get_c("vMinBounds");
+		if (!lights.c_vMaxBounds) lights.c_vMaxBounds = RCache.get_c("vMaxBounds");
+
+		RCache.set_c(lights.c_Ldynamic_pos, L_pos.x, L_pos.y, L_pos.z, att_factor);
+		RCache.set_c(lights.c_Ldynamic_color, L_clr.x, L_clr.y, L_clr.z, L_spec);
 		//RCache.set_c("m_texgen", m_Texgen);
 		//RCache.set_c("m_texgen_J", m_Texgen_J);
-		RCache.set_c("m_shadow", m_Shadow);
-		RCache.set_ca("m_lmap", 0, m_Lmap._11, m_Lmap._21, m_Lmap._31, m_Lmap._41);
-		RCache.set_ca("m_lmap", 1, m_Lmap._12, m_Lmap._22, m_Lmap._32, m_Lmap._42);
-		RCache.set_c("vMinBounds", aabb.x1, aabb.y1, aabb.z1, 0);
+		RCache.set_c(lights.c_m_shadow, m_Shadow);
+		RCache.set_ca(lights.c_m_lmap, 0, m_Lmap._11, m_Lmap._21, m_Lmap._31, m_Lmap._41);
+		RCache.set_ca(lights.c_m_lmap, 1, m_Lmap._12, m_Lmap._22, m_Lmap._32, m_Lmap._42);
+		RCache.set_c(lights.c_vMinBounds, aabb.x1, aabb.y1, aabb.z1, 0);
 		//	Increase camera-space aabb z size to compensate decrease of slices number
-		RCache.set_c("vMaxBounds", aabb.x2, aabb.y2, aabb.z1 + (aabb.z2 - aabb.z1) / fQuality, 0);
+		RCache.set_c(lights.c_vMaxBounds, aabb.x2, aabb.y2, aabb.z1 + (aabb.z2 - aabb.z1) / fQuality, 0);
 
 		//	Set up user clip planes
 		{
 			static shared_str strFrustumClipPlane("FrustumClipPlane");
+			if (!lights.c_FrustumClipPlane) lights.c_FrustumClipPlane = RCache.get_c(strFrustumClipPlane);
 			//	TODO: DX10: Check if it's equivalent to the previouse code.
 			//RCache.set_ClipPlanes (TRUE,ClipFrustum.planes,ClipFrustum.p_count);
 
@@ -683,7 +715,7 @@ void CRenderTarget::accum_volumetric(light* L)
 				Fvector4 TransformedPlane;
 				PlaneTransform.transform(TransformedPlane, ClipPlane);
 				TransformedPlane.mul(-1.0f);
-				RCache.set_ca(strFrustumClipPlane, i, TransformedPlane);
+				RCache.set_ca(lights.c_FrustumClipPlane, i, TransformedPlane);
 				//HW.pDevice->SetClipPlane( i, &TransformedPlane.x);
 			}
 			/*

@@ -19,6 +19,7 @@
 
 #ifdef USE_DX11
 #	include "..\xrRenderPC_R4\r_backend_lod.h"
+#	include "..\xrRenderPC_R4\R_Backend_light.h"
 #endif
 
 #include "fvf.h"
@@ -123,6 +124,7 @@ public:
 	R_tree tree;
 #ifdef USE_DX11
 	R_LOD LOD;
+	R_light_constants lights;
 #endif
 
 #if defined(USE_DX10) || defined(USE_DX11)

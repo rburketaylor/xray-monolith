@@ -14,6 +14,10 @@ void CRenderTarget::accum_point(light* L)
 		shader_msaa = s_accum_point_msaa;
 	}
 
+	//	Light constants are resolved lazily from the table in use and dropped
+	//	whenever another constant table is set
+	R_light_constants& lights = RCache.lights;
+
 	// Common
 	Fvector L_pos;
 	float L_spec;
@@ -95,15 +99,21 @@ void CRenderTarget::accum_point(light* L)
 		}
 		RCache.set_Element(shader->E[_id]);
 
-		// Constants
-		RCache.set_c("Ldynamic_pos", L_pos.x, L_pos.y, L_pos.z, 1 / (L_R * L_R));
-		RCache.set_c("Ldynamic_color", L_clr.x, L_clr.y, L_clr.z, L_spec);
-		RCache.set_c("m_texgen", m_Texgen);
+		// Constants: resolve the handles once per bound table instead of
+		// looking every name up again for each light
+		if (!lights.c_Ldynamic_pos) lights.c_Ldynamic_pos = RCache.get_c("Ldynamic_pos");
+		if (!lights.c_Ldynamic_color) lights.c_Ldynamic_color = RCache.get_c("Ldynamic_color");
+		if (!lights.c_m_texgen) lights.c_m_texgen = RCache.get_c("m_texgen");
+		if (!lights.c_sss_id) lights.c_sss_id = RCache.get_c("sss_id");
+
+		RCache.set_c(lights.c_Ldynamic_pos, L_pos.x, L_pos.y, L_pos.z, 1 / (L_R * L_R));
+		RCache.set_c(lights.c_Ldynamic_color, L_clr.x, L_clr.y, L_clr.z, L_spec);
+		RCache.set_c(lights.c_m_texgen, m_Texgen);
 
 		if (!Device.m_SecondViewport.IsSVPFrame())
-			RCache.set_c("sss_id", L->sss_id);
+			RCache.set_c(lights.c_sss_id, L->sss_id);
 		else
-			RCache.set_c("sss_id", -1);
+			RCache.set_c(lights.c_sss_id, -1);
 
 		// Fetch4 : enable
 		//		if (RImplementation.o.HW_smap_FETCH4)	{
@@ -164,7 +174,8 @@ void CRenderTarget::accum_point(light* L)
 		else
 			u_setrt(rt_Accumulator,NULL,NULL, rt_MSAADepth->pZRT);
 		RCache.set_Element(s_accum_mask->E[SE_MASK_ACCUM_VOL]);
-		RCache.set_c("m_texgen", m_Texgen);
+		if (!lights.c_m_texgen) lights.c_m_texgen = RCache.get_c("m_texgen");
+		RCache.set_c(lights.c_m_texgen, m_Texgen);
 		if (! RImplementation.o.dx10_msaa)
 		{
 			RCache.set_Stencil(TRUE, D3DCMP_LESSEQUAL, dwLightMarkerID, 0xff, 0x00);

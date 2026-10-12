@@ -557,6 +557,7 @@ IC void CBackend::set_Constants(R_constant_table* C)
 	tree.unmap();
 #ifdef USE_DX11
 	LOD.unmap		();
+	lights.unmap	();
 #endif
 	StateManager.UnmapConstants();
 	if (0 == C) return;
