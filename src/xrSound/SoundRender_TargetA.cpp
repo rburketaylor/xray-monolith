@@ -12,6 +12,14 @@ CSoundRender_TargetA::CSoundRender_TargetA(): CSoundRender_Target()
 {
 	cache_gain = 0.f;
 	cache_pitch = 1.f;
+	// mirrors of the OpenAL source state for the rarely changing
+	// parameters; they are (re)applied to the source in _initialize()
+	cache_min_dist = 1.f;
+	cache_max_dist = flt_max;
+	cache_rolloff = 1.f;
+	cache_position.set(0.f, 0.f, 0.f);
+	cache_velocity.set(0.f, 0.f, 0.f);
+	cache_2d = FALSE;
 	pSource = 0;
 	Slot = u32(-1);
 }
@@ -39,6 +47,14 @@ BOOL CSoundRender_TargetA::_initialize()
 		A_CHK(alSourcef (pSource, AL_MAX_GAIN, 1.f));
 		A_CHK(alSourcef (pSource, AL_GAIN, cache_gain));
 		A_CHK(alSourcef (pSource, AL_PITCH, cache_pitch));
+		// restore the cached source parameters on the new source (change
+		// detection in fill_parameters would otherwise skip them)
+		A_CHK(alSourcef (pSource, AL_REFERENCE_DISTANCE, cache_min_dist));
+		A_CHK(alSourcef (pSource, AL_MAX_DISTANCE, cache_max_dist));
+		A_CHK(alSource3f(pSource, AL_POSITION, cache_position.x, cache_position.y, cache_position.z));
+		A_CHK(alSource3f(pSource, AL_VELOCITY, cache_velocity.x, cache_velocity.y, cache_velocity.z));
+		A_CHK(alSourcei (pSource, AL_SOURCE_RELATIVE, cache_2d));
+		A_CHK(alSourcef (pSource, AL_ROLLOFF_FACTOR, cache_rolloff));
 		return TRUE;
 	}
 	else
@@ -100,6 +116,7 @@ void CSoundRender_TargetA::stop()
 		A_CHK(alSourceStop(pSource));
 		A_CHK(alSourcei (pSource, AL_BUFFER, NULL));
 		A_CHK(alSourcei (pSource, AL_SOURCE_RELATIVE, TRUE));
+		cache_2d = TRUE; // keep the cache in sync with the forced value above
 	}
 	inherited::stop();
 }
@@ -163,22 +180,49 @@ void CSoundRender_TargetA::fill_parameters()
 
 	// 3D params
 	VERIFY2(m_pEmitter, SE->source()->file_name());
-	A_CHK(alSourcef (pSource, AL_REFERENCE_DISTANCE, m_pEmitter->p_source.min_distance));
+	if (!fsimilar(m_pEmitter->p_source.min_distance, cache_min_dist, 0.01f))
+	{
+		cache_min_dist = m_pEmitter->p_source.min_distance;
+		A_CHK(alSourcef(pSource, AL_REFERENCE_DISTANCE, cache_min_dist));
+	}
 
 	VERIFY2(m_pEmitter, SE->source()->file_name());
-	A_CHK(alSourcef (pSource, AL_MAX_DISTANCE, m_pEmitter->p_source.max_distance));
-
-	VERIFY2(m_pEmitter, SE->source()->file_name ());
-	A_CHK(alSource3f(pSource, AL_POSITION, m_pEmitter->p_source.position.x,m_pEmitter->p_source.position.y,-m_pEmitter->
-		p_source.position.z));
-
-	VERIFY2(m_pEmitter, SE->source()->file_name());
-	A_CHK(alSource3f(pSource, AL_VELOCITY, m_pEmitter->p_source.velocity.x, m_pEmitter->p_source.velocity.y, -m_pEmitter->p_source.velocity.z));
+	if (!fsimilar(m_pEmitter->p_source.max_distance, cache_max_dist, 0.01f))
+	{
+		cache_max_dist = m_pEmitter->p_source.max_distance;
+		A_CHK(alSourcef(pSource, AL_MAX_DISTANCE, cache_max_dist));
+	}
 
 	VERIFY2(m_pEmitter, SE->source()->file_name());
-	A_CHK(alSourcei (pSource, AL_SOURCE_RELATIVE, m_pEmitter->b2D));
+	Fvector _pos = m_pEmitter->p_source.position;
+	_pos.z = -_pos.z;
+	if (cache_position.x != _pos.x || cache_position.y != _pos.y || cache_position.z != _pos.z)
+	{
+		cache_position.set(_pos);
+		A_CHK(alSource3f(pSource, AL_POSITION, cache_position.x, cache_position.y, cache_position.z));
+	}
 
-	A_CHK(alSourcef (pSource, AL_ROLLOFF_FACTOR, psSoundRolloff));
+	VERIFY2(m_pEmitter, SE->source()->file_name());
+	Fvector _vel = m_pEmitter->p_source.velocity;
+	_vel.z = -_vel.z;
+	if (cache_velocity.x != _vel.x || cache_velocity.y != _vel.y || cache_velocity.z != _vel.z)
+	{
+		cache_velocity.set(_vel);
+		A_CHK(alSource3f(pSource, AL_VELOCITY, cache_velocity.x, cache_velocity.y, cache_velocity.z));
+	}
+
+	VERIFY2(m_pEmitter, SE->source()->file_name());
+	if (cache_2d != m_pEmitter->b2D)
+	{
+		cache_2d = m_pEmitter->b2D;
+		A_CHK(alSourcei(pSource, AL_SOURCE_RELATIVE, cache_2d));
+	}
+
+	if (!fsimilar(psSoundRolloff, cache_rolloff, 0.01f))
+	{
+		cache_rolloff = psSoundRolloff;
+		A_CHK(alSourcef(pSource, AL_ROLLOFF_FACTOR, cache_rolloff));
+	}
 
 	VERIFY2(m_pEmitter, SE->source()->file_name());
 	float _gain = m_pEmitter->smooth_volume;

@@ -15,6 +15,12 @@ public:
 	ALuint pBuffers[sdef_target_count];
 	float cache_gain;
 	float cache_pitch;
+	float cache_min_dist;
+	float cache_max_dist;
+	float cache_rolloff;
+	Fvector cache_position; // stored in OpenAL space (z negated)
+	Fvector cache_velocity; // stored in OpenAL space (z negated)
+	BOOL cache_2d;
 	ALuint Slot;
 
 	ALuint buf_block;
