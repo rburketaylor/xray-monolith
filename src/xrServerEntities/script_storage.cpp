@@ -1039,7 +1039,7 @@ bool CScriptStorage::do_file(LPCSTR caScriptName, LPCSTR caNameSpaceName)
 	if (l_iErrorCode)
 	{
 //#ifdef DEBUG
-		if (Core.isDebug()) print_output(lua(),caScriptName,l_iErrorCode);
+		print_output(lua(),caScriptName,l_iErrorCode);
 //#endif
 		on_error(lua());
 		lua_settop(lua(), start);
