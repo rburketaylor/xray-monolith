@@ -17,6 +17,12 @@ CUIGameLog::CUIGameLog()
 	kill_msg_height = 20;
 	txt_color = 0xff000000;
 	m_pFont = NULL;
+	m_last_pad_pos.set(0.0f, 0.0f);
+	m_last_abs_pos.set(0.0f, 0.0f);
+	m_last_pad_abs_pos.set(0.0f, 0.0f);
+	m_last_anim_pass = 0;
+	m_last_trim_pass = 0;
+	m_trim_ran = false;
 }
 
 CUITextWnd* CUIGameLog::AddLogMessage(LPCSTR msg)
@@ -75,53 +81,95 @@ void CUIGameLog::SetTextAtrib(CGameFont* pFont, u32 color)
 	txt_color = color;
 }
 
+// every item is scanned for finished blink animations and again for items
+// scrolled out of view; neither result changes at frame rate, so the expiry
+// scan runs at ~4 Hz and the trim scan only when the pad may have moved
+static const u32 GAME_LOG_UPDATE_PERIOD_MS = 250;
+
 void CUIGameLog::Update()
 {
 	CUIScrollView::Update();
-	toDelList.clear();
+
+	const u32 now = Device.dwTimeGlobal;
+
+	// the pad moves when the log is scrolled (wheel, bar, drag); the window
+	// itself moves with the HUD. Either invalidates the trimmed rects.
+	Fvector2 abs_pos;
+	GetAbsolutePos(abs_pos);
+	Fvector2 pad_abs_pos;
+	m_pad->GetAbsolutePos(pad_abs_pos);
+
+	const bool pad_moved = !m_trim_ran
+		|| !m_last_pad_pos.similar(m_pad->GetWndPos())
+		|| !m_last_abs_pos.similar(abs_pos)
+		|| !m_last_pad_abs_pos.similar(pad_abs_pos);
+
+	const bool anim_pass_due = (now - m_last_anim_pass) >= GAME_LOG_UPDATE_PERIOD_MS;
+	const bool trim_pass_due = (now - m_last_trim_pass) >= GAME_LOG_UPDATE_PERIOD_MS;
+	const bool trim = m_flags.test(eNeedRecalc) || pad_moved || trim_pass_due;
+
+	if (!anim_pass_due && !trim)
+		return;
 
 	xrCriticalSectionGuard guard(m_pad->csUi);
 	WINDOW_LIST_it it = m_pad->GetChildWndList().begin();
 	WINDOW_LIST_it it_e = m_pad->GetChildWndList().end();
 
-	for (; it != it_e; ++it)
+	if (anim_pass_due)
 	{
-		CUILightAnimColorConroller* pItem = smart_cast<CUILightAnimColorConroller*>(*it);
+		m_last_anim_pass = now;
+		toDelList.clear();
 
-		if (!pItem->IsColorAnimationPresent())
-			toDelList.push_back(*it);
+		for (; it != it_e; ++it)
+		{
+			CUILightAnimColorConroller* pItem = smart_cast<CUILightAnimColorConroller*>(*it);
+
+			if (!pItem->IsColorAnimationPresent())
+				toDelList.push_back(*it);
+		}
+
+		// Delete elements
+		it_e = toDelList.end();
+
+		for (it = toDelList.begin(); it != it_e; ++it)
+			RemoveWindow(*it);
 	}
 
-	// Delete elements
-	it_e = toDelList.end();
-
-	for (it = toDelList.begin(); it != it_e; ++it)
-		RemoveWindow(*it);
-
-	// REMOVE INVISIBLE AND PART VISIBLE ITEMS
-	if (m_flags.test(eNeedRecalc))
-		RecalcSize();
-
-	toDelList.clear();
-	Frect visible_rect;
-	GetAbsoluteRect(visible_rect);
-	it_e = m_pad->GetChildWndList().end();
-	for (it = m_pad->GetChildWndList().begin(); it != it_e; ++it)
+	if (trim)
 	{
-		Frect r;
-		(*it)->GetAbsoluteRect(r);
-		r.shrink(3.0f, 3.0f);
+		m_trim_ran = true;
+		m_last_trim_pass = now;
+		m_last_pad_pos = m_pad->GetWndPos();
+		GetAbsolutePos(abs_pos);
+		m_last_abs_pos = abs_pos;
+		m_pad->GetAbsolutePos(pad_abs_pos);
+		m_last_pad_abs_pos = pad_abs_pos;
 
-		if (! (visible_rect.in(r.x1, r.y1) && visible_rect.in(r.x2, r.y1) && visible_rect.in(r.x1, r.y2) && visible_rect
-			.in(r.x2, r.y2)))
-			toDelList.push_back(*it);
+		// REMOVE INVISIBLE AND PART VISIBLE ITEMS
+		if (m_flags.test(eNeedRecalc))
+			RecalcSize();
+
+		toDelList.clear();
+		Frect visible_rect;
+		GetAbsoluteRect(visible_rect);
+		it_e = m_pad->GetChildWndList().end();
+		for (it = m_pad->GetChildWndList().begin(); it != it_e; ++it)
+		{
+			Frect r;
+			(*it)->GetAbsoluteRect(r);
+			r.shrink(3.0f, 3.0f);
+
+			if (! (visible_rect.in(r.x1, r.y1) && visible_rect.in(r.x2, r.y1) && visible_rect.in(r.x1, r.y2) && visible_rect
+				.in(r.x2, r.y2)))
+				toDelList.push_back(*it);
+		}
+
+		// Delete elements
+		it_e = toDelList.end();
+		for (it = toDelList.begin(); it != it_e; ++it)
+			RemoveWindow(*it);
+
+		if (m_flags.test(eNeedRecalc))
+			RecalcSize();
 	}
-
-	// Delete elements
-	it_e = toDelList.end();
-	for (it = toDelList.begin(); it != it_e; ++it)
-		RemoveWindow(*it);
-
-	if (m_flags.test(eNeedRecalc))
-		RecalcSize();
 }
