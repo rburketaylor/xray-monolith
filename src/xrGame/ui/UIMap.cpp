@@ -1223,13 +1223,14 @@ void CUIMiniMapWidget::clear_pointer_target()
 	set_pointer_target(u16(-1));
 }
 
-bool CUIMiniMapWidget::pointer_allowed(CMapLocation* loc) const
+bool CUIMiniMapWidget::pointer_allowed(CMapLocation* loc, const shared_str& type) const
 {
 	if (!m_pointers_visible) return false;
 	if (loc->ObjectID() == m_pointer_target) return true;
 
-	LPCSTR type = loc->CurrentSpotType();
-	return type && m_pointer_types.find(shared_str(type)) != m_pointer_types.end();
+	// the caller passes the type it already interned (CurrentSpotType is
+	// stable while the location lives), so no temporary is built here
+	return type.size() && m_pointer_types.find(type) != m_pointer_types.end();
 }
 
 // drops the pointers the rule no longer allows and forgets the entries that now need one
@@ -1238,7 +1239,7 @@ void CUIMiniMapWidget::refit_pointers()
 	for (auto it = m_pool.begin(); it != m_pool.end();)
 	{
 		SPoolEntry& e = it->second;
-		bool want = pointer_allowed(it->first);
+		bool want = pointer_allowed(it->first, e.type);
 		if (e.pointer && !want)
 		{
 			if (e.pointer->GetParent() == m_map)
@@ -1387,7 +1388,15 @@ void CUIMiniMapWidget::scale_spot(CUIStatic* sp, float scale)
 CUIMiniMapWidget::SPoolEntry* CUIMiniMapWidget::acquire(CMapLocation* loc)
 {
 	auto found = m_pool.find(loc);
-	if (found != m_pool.end()) return &found->second;
+	if (found != m_pool.end())
+	{
+		// a CRelationMapLocation changes its spot name with the relation;
+		// keep the cached type current so the icon filter follows it
+		LPCSTR current = loc->CurrentSpotType();
+		if (current && xr_strcmp(found->second.type.c_str(), current) != 0)
+			found->second.type = current;
+		return &found->second;
+	}
 
 	LPCSTR type = loc->CurrentSpotType();
 	if (!type) return NULL;
@@ -1400,6 +1409,9 @@ CUIMiniMapWidget::SPoolEntry* CUIMiniMapWidget::acquire(CMapLocation* loc)
 	e.pointer_path = xr_strlen(pointer_path) != 0;
 	e.color = 0;
 	e.stamp = m_stamp;
+	// CurrentSpotType returns the location's interned spot name; keeping it as
+	// a shared_str lets the per-frame type filters compare without temporaries
+	e.type = type;
 
 	e.spot = xr_new<CMiniMapSpot>(loc);
 	e.spot->Load(GetSpotXml(), spot_path);
@@ -1408,7 +1420,7 @@ CUIMiniMapWidget::SPoolEntry* CUIMiniMapWidget::acquire(CMapLocation* loc)
 	e.spot->SetStretchTexture(true);
 
 	e.spot->SetIconShader(spot_shader());
-	auto ov = m_icons.find(shared_str(type));
+	auto ov = m_icons.find(e.type);
 	if (ov != m_icons.end())
 	{
 		if (ov->second.texture.size())
@@ -1422,13 +1434,13 @@ CUIMiniMapWidget::SPoolEntry* CUIMiniMapWidget::acquire(CMapLocation* loc)
 	scale_spot(e.spot, m_spot_scale);
 	arm_spot_anim(e.spot, GetSpotXml(), spot_path);
 
-	if (e.pointer_path && pointer_allowed(loc))
+	if (e.pointer_path && pointer_allowed(loc, e.type))
 	{
 		e.pointer = xr_new<CMapSpotPointer>(loc);
 		e.pointer->Load(GetSpotXml(), pointer_path);
 		e.pointer->m_stat_hint_text = "";
 		e.pointer->SetStretchTexture(true);
-		auto pov = m_pointer_icons.find(shared_str(type));
+		auto pov = m_pointer_icons.find(e.type);
 		if (pov != m_pointer_icons.end())
 		{
 			e.pointer->InitTextureEx(pov->second.texture.c_str(), spot_shader());
@@ -1489,12 +1501,19 @@ void CUIMiniMapWidget::Update()
 		if (loc->GetLevelName() != m_map->MapName() && !(m_pointers_visible && loc->ObjectID() == m_pointer_target))
 			continue;
 
-		LPCSTR current_type = loc->CurrentSpotType();
-		if (!m_hidden_types.empty() && current_type && m_hidden_types.find(shared_str(current_type)) != m_hidden_types.end())
-			continue;
-
 		SPoolEntry* e = acquire(loc);
 		if (!e) continue;
+
+		// the entry caches the location's interned spot type (CurrentSpotType
+		// is a stable interned string, refreshed in acquire if the location
+		// changed it), so the sets below are searched without building a
+		// shared_str temporary per location per frame
+		if (!m_hidden_types.empty() && m_hidden_types.find(e->type) != m_hidden_types.end())
+		{
+			// hidden: this frame does not stamp the entry, so the sweep below
+			// prunes it exactly like the pre-existing filter did
+			continue;
+		}
 
 		e->stamp = m_stamp;
 
