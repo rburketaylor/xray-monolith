@@ -112,6 +112,7 @@ void CUIScrollView::RemoveWindow(CUIWindow* pWnd)
 
 void CUIScrollView::Clear()
 {
+	Msg("[invbar] ScrollView::Clear (bar %d, pad_y %.0f)", m_VScrollBar->GetScrollPos(), m_pad->GetWndPos().y);
 	m_pad->DetachAll();
 	m_flags.set(eNeedRecalc,TRUE);
 	ScrollToBegin();
@@ -193,7 +194,9 @@ void CUIScrollView::UpdateScroll()
 {
 	Fvector2 w_pos = m_pad->GetWndPos();
 	m_VScrollBar->SetHeight(GetHeight());
-	m_VScrollBar->SetRange(0, iFloor(m_pad->GetHeight() * Scroll2ViewV()));
+	int range_max = iFloor(m_pad->GetHeight() * Scroll2ViewV());
+	Msg("[invbar] UpdateScroll pad_y %.0f -> pos %d (pad_h %.0f, range 0..%d)", w_pos.y, iFloor(-w_pos.y), m_pad->GetHeight(), range_max);
+	m_VScrollBar->SetRange(0, range_max);
 
 	m_VScrollBar->SetScrollPos(iFloor(-w_pos.y));
 }
@@ -269,6 +272,7 @@ void CUIScrollView::OnScrollV(CUIWindow*, void*)
 {
 	int s_pos = m_VScrollBar->GetScrollPos();
 	Fvector2 w_pos = m_pad->GetWndPos();
+	Msg("[invbar] OnScrollV bar %d -> pad_y %.0f", s_pos, float(-s_pos));
 	m_pad->SetWndPos(Fvector2().set(w_pos.x, float(-s_pos)));
 	m_visible_rgn.set(-1, -1);
 }
@@ -326,6 +330,7 @@ int CUIScrollView::GetCurrentScrollPos()
 
 void CUIScrollView::SetScrollPos(int value)
 {
+	Msg("[invbar] ScrollView::SetScrollPos req %d (bar was %d)", value, m_VScrollBar->GetScrollPos());
 	if (m_flags.test(eNeedRecalc))
 		RecalcSize();
 
@@ -339,6 +344,7 @@ void CUIScrollView::ScrollToBegin()
 	if (m_flags.test(eNeedRecalc))
 		RecalcSize();
 
+	Msg("[invbar] ScrollToBegin was %d (min %d)", m_VScrollBar->GetScrollPos(), m_VScrollBar->GetMinRange());
 	m_VScrollBar->SetScrollPos(m_VScrollBar->GetMinRange());
 	OnScrollV(NULL, NULL);
 }

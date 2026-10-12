@@ -129,6 +129,7 @@ void CUIScrollBar::SetStepSize(int step)
 
 void CUIScrollBar::SetRange(int iMin, int iMax)
 {
+	Msg("[invbar] SetRange %d..%d (was %d..%d, pos %d)", iMin, iMax, m_iMinPos, m_iMaxPos, m_iScrollPos);
 	m_iMinPos = iMin;
 	m_iMaxPos = iMax;
 	VERIFY(iMax>=iMin);
@@ -338,8 +339,12 @@ int CUIScrollBar::PosViewFromScroll(int view_size, int view_offs)
 
 void CUIScrollBar::SetScrollPosClamped(int iPos)
 {
+	int old_pos = m_iScrollPos;
 	m_iScrollPos = iPos;
 	clamp(m_iScrollPos, m_iMinPos, m_iMaxPos - m_iPageSize + 1);
+	if (old_pos != m_iScrollPos)
+		Msg("[invbar] SetScrollPosClamped %d -> %d (req %d, min %d, max %d, page %d)",
+			old_pos, m_iScrollPos, iPos, m_iMinPos, m_iMaxPos, m_iPageSize);
 }
 
 void CUIScrollBar::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
@@ -412,7 +417,10 @@ bool CUIScrollBar::ScrollDec(bool by_scrollbox)
 				SetScrollPos(m_iScrollPos - m_iStepSize);
 		}
 		else
+		{
+			Msg("[invbar] ScrollDec snap-to-0 from %d (step %d, box %d)", m_iScrollPos, m_iStepSize, by_scrollbox ? 1 : 0);
 			SetScrollPos(0);
+		}
 
 		return true;
 	}
@@ -434,6 +442,7 @@ bool CUIScrollBar::ScrollInc(bool by_scrollbox)
 		return true;
 	}
 
+	Msg("[invbar] ScrollInc blocked at %d (max-page+1 %d, page %d, step %d)", m_iScrollPos, m_iMaxPos - m_iPageSize + 1, m_iPageSize, m_iStepSize);
 	return false;
 }
 
